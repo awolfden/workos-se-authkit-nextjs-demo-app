@@ -1,0 +1,66 @@
+/* Style for active tab triggers only */
+[data-orientation="vertical"][role="tab"][data-state="active"] {
+  background-color: var(--gray-4) !important;
+  border-left: 3px solid var(--accent-9) !important;
+  text-decoration: none !important;
+  box-shadow: none !important;
+  font-weight: 500 !important;
+}
+
+/* Remove underline from all vertical tab triggers */
+[data-orientation="vertical"][role="tab"]::after {
+  display: none !important;
+}
+
+/* Hover effect for tabs */
+[data-orientation="vertical"][role="tab"]:hover:not([data-state="active"]) {
+  background-color: var(--gray-3) !important;
+}
+
+/* Make tabs fill the height */
+[data-orientation="vertical"][role="tablist"] {
+  height: 100% !important;
+}
+
+/* Make tabs more compact on smaller screens */
+@media (max-width: 768px) {
+  [data-orientation="vertical"][role="tab"] {
+    padding: 8px 12px !important;
+    font-size: 14px !important;
+  }
+
+  [data-orientation="vertical"][role="tab"] svg {
+    width: 14px;
+    height: 14px;
+  }
+}
+
+/* Ensure content doesn't overflow */
+[data-orientation="vertical"][role="tabpanel"] {
+  max-width: 100%;
+  overflow: auto;
+}
+
+/* Ensure all tab panels have the same width */
+[data-orientation="vertical"][role="tabpanel"] {
+  width: 100% !important;
+  min-width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* Force tab content to maintain consistent dimensions */
+[data-state="active"][role="tabpanel"] {
+  display: block !important;
+  width: 100% !important;
+}
+
+/* Hide inactive tabs completely */
+[data-state="inactive"][role="tabpanel"] {
+  display: none !important;
+}
+
+.woswidgets-widget,
+.woswidgets-root {
+  margin-bottom: 10px;
+}
