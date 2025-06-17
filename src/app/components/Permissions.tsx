@@ -1,5 +1,6 @@
 import { withAuth } from "@workos-inc/authkit-nextjs";
-import { Text, Heading, TextField, Flex, Box } from "@radix-ui/themes";
+import { Text, Heading, Card, Flex, Box } from "@radix-ui/themes";
+import { CheckCircledIcon } from "@radix-ui/react-icons";
 
 interface PermissionsProps {
   role: string;
@@ -11,43 +12,49 @@ export default async function Permissions({ role }: PermissionsProps) {
     throw new Error("Authentication required");
   }
 
-  const userFields = [
-    ["Id", user.id],
-    role ? ["Role", role] : [],
-    permissions ? ["Permissions", permissions.map((p) => p.trim())] : [],
-  ].filter((arr) => arr.length > 0);
-
   return (
-    <>
-      {userFields && (
-        <Flex direction="column" justify="center" gap="3" width="400px">
-          {userFields.map(([label, value]) => (
-            <Flex asChild align="start" gap="6" key={String(label)}>
-              <label>
-                <Text weight="regular" size="3" style={{ width: 100 }}>
-                  {label}
-                </Text>
-
-                <Box flexGrow="1">
-                  {label === "Permissions" && Array.isArray(value) ? (
-                    <Flex direction="column" gap="2">
-                      {value.map((permission, index) => (
-                        <TextField.Root
-                          key={index}
-                          value={permission}
-                          readOnly
-                        />
-                      ))}
-                    </Flex>
-                  ) : (
-                    <TextField.Root value={String(value) || ""} readOnly />
-                  )}
-                </Box>
-              </label>
+    <Flex direction="column" gap="4">
+      {/* User Info Card */}
+      <Card size="2">
+        <Flex direction="column" gap="2">
+          <Heading size="4">User Information</Heading>
+          <Flex direction="column" gap="2">
+            <Flex gap="2" align="center">
+              <Text weight="medium" size="2">
+                User ID:
+              </Text>
+              <Text size="2" color="gray">
+                {user.id}
+              </Text>
             </Flex>
-          ))}
+            <Flex gap="2" align="center">
+              <Text weight="medium" size="2">
+                Role:
+              </Text>
+              <Text size="2" color="gray">
+                {role}
+              </Text>
+            </Flex>
+          </Flex>
         </Flex>
-      )}
-    </>
+      </Card>
+
+      {/* Permissions Card */}
+      <Card size="2">
+        <Flex direction="column" gap="3">
+          <Heading size="4">Permissions</Heading>
+          <Flex direction="column" gap="2">
+            {permissions?.map((permission, index) => (
+              <Flex key={index} gap="2" align="center">
+                <CheckCircledIcon color="green" width="16" height="16" />
+                <Text size="2" color="gray">
+                  {permission.trim()}
+                </Text>
+              </Flex>
+            ))}
+          </Flex>
+        </Flex>
+      </Card>
+    </Flex>
   );
 }

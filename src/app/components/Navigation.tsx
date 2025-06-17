@@ -20,7 +20,7 @@ export async function Navigation() {
     <Flex gap="4">
       <Box mr="2" style={{ fontSize: "24px" }}>
         <img
-          src="https://media.licdn.com/dms/image/v2/C4D0BAQEeZoyawvJXEw/company-logo_200_200/company-logo_200_200/0/1631309504023?e=1755734400&v=beta&t=ori2duZVXg6XkhaTc5x-rnCEH9U9hJfmA9RdglVJvRU"
+          src="https://media.licdn.com/dms/image/v2/C4E0BAQEfq5LhkrlYbw/company-logo_200_200/company-logo_200_200/0/1643044431365/dailypay_inc_logo?e=1755734400&v=beta&t=ajJaX532VoZ83_YOLD7uqES284AJDQpGNJ6oEK0Zgjs"
           alt=""
           style={{ height: "30px", width: "30px" }}
         />

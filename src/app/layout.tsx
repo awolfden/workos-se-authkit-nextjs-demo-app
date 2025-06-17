@@ -51,7 +51,7 @@ export default function RootLayout({
       <body style={{ padding: 0, margin: 0 }}>
         <GlobalLoading />
         <Theme
-          accentColor="iris"
+          accentColor="gold"
           panelBackground="solid"
           style={{ backgroundColor: "var(--gray-1)" }}
         >

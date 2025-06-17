@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { OrganizationSwitcher, WorkOsWidgets } from "@workos-inc/widgets";
 import { CreateOrganization } from "./CreateOrganization";
 import { Flex, Spinner } from "@radix-ui/themes";
@@ -13,6 +13,7 @@ export default function OrganizationSwitcherClient({
   authToken: string;
 }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -56,7 +57,14 @@ export default function OrganizationSwitcherClient({
           switchToOrganization={async ({ organizationId }) => {
             try {
               setIsLoading(true);
-              await switchOrganization({ organizationId, pathname });
+              // Get the current tab from search params
+              const tab = searchParams.get("tab");
+              // Construct the full pathname with the tab parameter
+              const fullPathname = tab ? `${pathname}?tab=${tab}` : pathname;
+              await switchOrganization({
+                organizationId,
+                pathname: fullPathname,
+              });
             } catch (error) {
               console.error("Error switching organization:", error);
               setIsLoading(false);

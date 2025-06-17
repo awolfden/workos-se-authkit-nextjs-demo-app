@@ -55,6 +55,14 @@ export async function switchOrganization({
     }
   }
 
+  // Parse the pathname to get the base path and query parameters
+  const [basePath, queryString] = pathname.split("?");
+  const searchParams = new URLSearchParams(queryString);
+  const tab = searchParams.get("tab");
+
+  // Construct the redirect URL with the preserved tab
+  const redirectUrl = tab ? `${basePath}?tab=${tab}` : basePath;
+
   revalidatePath(pathname);
-  redirect(pathname);
+  redirect(redirectUrl);
 }

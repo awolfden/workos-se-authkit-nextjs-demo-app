@@ -34,7 +34,7 @@ export default async function OrganizationSwitcherComponent() {
         console.log("[DEBUG] Organization Switch Attempt:", {
           fromOrgId: organizationId,
           toOrgId: newOrgId,
-          // currentRole: role,
+          currentRole: role,
         });
 
         try {
