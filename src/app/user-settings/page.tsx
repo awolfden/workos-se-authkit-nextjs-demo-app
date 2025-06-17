@@ -24,10 +24,17 @@ import Link from "next/link";
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: { tab?: string };
+  searchParams: { [key: string]: string | string[] | undefined };
 }) {
   const { role, organizationId, user, sessionId } = await withAuth({
     ensureSignedIn: true,
+  });
+
+  console.log("[DEBUG] User Settings Page:", {
+    userId: user.id,
+    organizationId,
+    role,
+    sessionId,
   });
 
   if (!organizationId) {
@@ -47,10 +54,14 @@ export default async function SettingsPage({
     "permissions",
     "team-management",
     "enterprise-integrations",
-  ];
+  ] as const;
+
+  // Get the tab parameter and ensure it's a string
+  const tabParam =
+    typeof searchParams.tab === "string" ? searchParams.tab : undefined;
   const activeTab =
-    searchParams.tab && validTabs.includes(searchParams.tab)
-      ? searchParams.tab
+    tabParam && validTabs.includes(tabParam as (typeof validTabs)[number])
+      ? tabParam
       : "profile";
 
   return (

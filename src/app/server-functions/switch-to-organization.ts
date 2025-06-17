@@ -16,22 +16,17 @@ export const switchToOrganizationAction = async ({
   try {
     await refreshSession({ organizationId, ensureSignedIn: true });
   } catch (err: any) {
-    if (err.rawData.authkit_redirect_url) {
+    if (err.rawData?.authkit_redirect_url) {
       redirect(err.rawData.authkit_redirect_url);
-    } else {
-      const args = {
+    } else if (err.error === "sso_required" || err.error === "mfa_enrollment") {
+      const url = workos.userManagement.getAuthorizationUrl({
         organizationId,
         clientId: process.env.WORKOS_CLIENT_ID!,
         provider: "authkit",
         redirectUri: "http://localhost:4040/callback",
-      };
-
-      if (err.error === "sso_required" || err.error === "mfa_enrollment") {
-        const url = workos.userManagement.getAuthorizationUrl({
-          ...args,
-        });
-        redirect(url);
-      }
+      });
+      redirect(url);
+    } else {
       throw err;
     }
   }

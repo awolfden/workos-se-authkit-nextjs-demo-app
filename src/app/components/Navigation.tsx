@@ -20,7 +20,7 @@ export async function Navigation() {
     <Flex gap="4">
       <Box mr="2" style={{ fontSize: "24px" }}>
         <img
-          src="https://media.licdn.com/dms/image/v2/D4E0BAQGRa-HdqK3BRQ/company-logo_200_200/B4EZb9UdhlGUAI-/0/1748006722502/lovable_dev_logo?e=1753920000&v=beta&t=-91X7cyPzfr6ISthROgZqFwEKAWRT5os-U8olsICOAM"
+          src="https://media.licdn.com/dms/image/v2/C4D0BAQEeZoyawvJXEw/company-logo_200_200/company-logo_200_200/0/1631309504023?e=1755734400&v=beta&t=ori2duZVXg6XkhaTc5x-rnCEH9U9hJfmA9RdglVJvRU"
           alt=""
           style={{ height: "30px", width: "30px" }}
         />

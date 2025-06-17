@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { OrganizationSwitcher, WorkOsWidgets } from "@workos-inc/widgets";
 import { CreateOrganization } from "./CreateOrganization";
 import { Flex, Spinner } from "@radix-ui/themes";
+import { switchOrganization } from "../actions/switch-organization";
 
 export default function OrganizationSwitcherClient({
   authToken,
@@ -55,24 +56,7 @@ export default function OrganizationSwitcherClient({
           switchToOrganization={async ({ organizationId }) => {
             try {
               setIsLoading(true);
-
-              // Use a regular fetch to the API endpoint
-              await fetch("/api/switch-organization", {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                  organizationId,
-                  pathname,
-                }),
-              });
-
-              // Store a flag in localStorage to indicate we're in the middle of a transition
-              localStorage.setItem("orgSwitchInProgress", "true");
-
-              // Reload the page to reflect the organization change
-              window.location.href = pathname;
+              await switchOrganization({ organizationId, pathname });
             } catch (error) {
               console.error("Error switching organization:", error);
               setIsLoading(false);
