@@ -17,9 +17,23 @@
   background-color: var(--gray-3) !important;
 }
 
-/* Make tabs fill the height */
+/* Make tabs fill the height and prevent scrolling */
 [data-orientation="vertical"][role="tablist"] {
   height: 100% !important;
+  overflow: hidden !important;
+  position: relative !important;
+  width: 240px !important;
+  flex-shrink: 0 !important;
+}
+
+/* Ensure tab content is properly contained */
+[data-orientation="vertical"][role="tab"] {
+  width: 100% !important;
+  max-width: 240px !important;
+  box-sizing: border-box !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
 }
 
 /* Make tabs more compact on smaller screens */

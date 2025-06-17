@@ -112,7 +112,8 @@ export default async function SettingsPage({
                   borderRight: "1px solid var(--gray-5)",
                   backgroundColor: "var(--gray-2)",
                   flexShrink: 0,
-                  overflowY: "auto",
+                  overflow: "hidden",
+                  position: "relative",
                 }}
               >
                 <Link href="/user-settings?tab=profile" passHref legacyBehavior>
