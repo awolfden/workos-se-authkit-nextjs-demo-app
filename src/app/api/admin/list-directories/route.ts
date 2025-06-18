@@ -25,12 +25,39 @@ export async function GET(request: Request) {
       organizationId,
     });
 
-    if (data.length > 0) {
-      // console.log("DSync is enabled");
-      return NextResponse.json({ dsyncEnabled: true });
+    console.log("[DEBUG] WorkOS directorySync.listDirectories response:", {
+      organizationId,
+      directoriesCount: data.length,
+      directories: data,
+    });
+
+    // Check if there's at least one directory with state "active"
+    const activeDirectories = data.filter(
+      (directory) => directory.state === "active"
+    );
+    const hasActiveDirectory = activeDirectories.length > 0;
+
+    console.log("[DEBUG] Directory status check:", {
+      totalDirectories: data.length,
+      activeDirectories: activeDirectories.length,
+      hasActiveDirectory: hasActiveDirectory,
+    });
+
+    if (hasActiveDirectory) {
+      return NextResponse.json({
+        dsyncEnabled: true,
+        directories: data,
+        count: data.length,
+        activeCount: activeDirectories.length,
+      });
     }
-    // console.log("DSync is disabled");
-    return NextResponse.json({ dsyncEnabled: false });
+
+    return NextResponse.json({
+      dsyncEnabled: false,
+      directories: data,
+      count: data.length,
+      activeCount: 0,
+    });
   } catch (error) {
     console.error("Portal generation error:", error);
     return NextResponse.json(

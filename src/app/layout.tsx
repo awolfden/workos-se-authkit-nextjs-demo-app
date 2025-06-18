@@ -13,6 +13,8 @@ import { Navigation } from "./components/Navigation";
 import GlobalLoading from "./components/global-loading";
 import Script from "next/script";
 
+const ACCENT_COLOR = process.env.ACCENT_COLOR;
+
 export const metadata: Metadata = {
   title: "Example AuthKit Authenticated App",
   description: "Example Next.js application demonstrating how to use AuthKit.",
@@ -51,7 +53,7 @@ export default function RootLayout({
       <body style={{ padding: 0, margin: 0 }}>
         <GlobalLoading />
         <Theme
-          accentColor="gold"
+          accentColor={ACCENT_COLOR as any}
           panelBackground="solid"
           style={{ backgroundColor: "var(--gray-1)" }}
         >

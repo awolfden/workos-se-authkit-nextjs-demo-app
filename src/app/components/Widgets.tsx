@@ -1,16 +1,13 @@
 "use client";
 
-import { usePathname } from "next/navigation";
 import {
   UsersManagement,
   UserProfile,
   UserSecurity,
   UserSessions,
-  OrganizationSwitcher,
   WorkOsWidgets,
 } from "@workos-inc/widgets";
-import { switchToOrganizationAction } from "../server-functions/switch-to-organization";
-import { CreateOrganization } from "./CreateOrganization";
+
 import dynamic from "next/dynamic";
 
 // Import the client component with dynamic import

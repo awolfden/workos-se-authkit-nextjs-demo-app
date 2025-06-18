@@ -24,7 +24,7 @@ import Link from "next/link";
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: { [key: string]: string | string[] | undefined };
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const { role, organizationId, user, sessionId } = await withAuth({
     ensureSignedIn: true,
@@ -56,9 +56,14 @@ export default async function SettingsPage({
     "enterprise-integrations",
   ] as const;
 
+  // Await searchParams before accessing its properties
+  const resolvedSearchParams = await searchParams;
+
   // Get the tab parameter and ensure it's a string
   const tabParam =
-    typeof searchParams.tab === "string" ? searchParams.tab : undefined;
+    typeof resolvedSearchParams.tab === "string"
+      ? resolvedSearchParams.tab
+      : undefined;
   const activeTab =
     tabParam && validTabs.includes(tabParam as (typeof validTabs)[number])
       ? tabParam

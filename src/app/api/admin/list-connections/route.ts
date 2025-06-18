@@ -25,12 +25,39 @@ export async function GET(request: Request) {
       organizationId,
     });
 
-    if (data.length > 0) {
-      // console.log("SSO is enabled");
-      return NextResponse.json({ ssoEnabled: true });
+    console.log("[DEBUG] WorkOS sso.listConnections response:", {
+      organizationId,
+      connectionsCount: data.length,
+      connections: data,
+    });
+
+    // Check if there's at least one connection with state "active"
+    const activeConnections = data.filter(
+      (connection) => connection.state === "active"
+    );
+    const hasActiveConnection = activeConnections.length > 0;
+
+    console.log("[DEBUG] Connection status check:", {
+      totalConnections: data.length,
+      activeConnections: activeConnections.length,
+      hasActiveConnection: hasActiveConnection,
+    });
+
+    if (hasActiveConnection) {
+      return NextResponse.json({
+        ssoEnabled: true,
+        connections: data,
+        count: data.length,
+        activeCount: activeConnections.length,
+      });
     }
-    // console.log("SSO is disabled");
-    return NextResponse.json({ ssoEnabled: false });
+
+    return NextResponse.json({
+      ssoEnabled: false,
+      connections: data,
+      count: data.length,
+      activeCount: 0,
+    });
   } catch (error) {
     console.error("Portal generation error:", error);
     return NextResponse.json(

@@ -10,13 +10,17 @@ interface PortalButtonProps {
   intent: PortalIntent;
 }
 
-let ssoEnabled = false;
 export async function checkSSOStatus(organizationId: string) {
   try {
     const response = await fetch(
       `/api/admin/list-connections?organizationId=${organizationId}`
     );
     const data = await response.json();
+    console.log("SSO API full response:", data);
+    console.log("SSO enabled:", data.ssoEnabled);
+    console.log("Connections count:", data.count);
+    console.log("Active connections count:", data.activeCount);
+    console.log("Connections data:", data.connections);
     return data.ssoEnabled;
   } catch (error) {
     console.error("Error listing connections:", error);

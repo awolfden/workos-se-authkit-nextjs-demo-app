@@ -11,6 +11,8 @@ export async function Navigation() {
     return;
   }
 
+  const PROSPECT_LOGO = process.env.PROSPECT_LOGO;
+
   const authToken = await workos.widgets.getToken({
     userId: user.id,
     organizationId,
@@ -20,7 +22,7 @@ export async function Navigation() {
     <Flex gap="4">
       <Box mr="2" style={{ fontSize: "24px" }}>
         <img
-          src="https://media.licdn.com/dms/image/v2/C4E0BAQEfq5LhkrlYbw/company-logo_200_200/company-logo_200_200/0/1643044431365/dailypay_inc_logo?e=1755734400&v=beta&t=ajJaX532VoZ83_YOLD7uqES284AJDQpGNJ6oEK0Zgjs"
+          src={PROSPECT_LOGO}
           alt=""
           style={{ height: "30px", width: "30px" }}
         />
