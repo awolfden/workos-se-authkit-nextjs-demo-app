@@ -49,9 +49,9 @@ export default async function SettingsPage({
   // Get the active tab from search params
   const validTabs = [
     "profile",
+    "permissions",
     "security",
     "sessions",
-    "permissions",
     "team-management",
     "enterprise-integrations",
   ] as const;
@@ -128,6 +128,16 @@ export default async function SettingsPage({
                   </TabLink>
                 </Link>
                 <Link
+                  href="/user-settings?tab=permissions"
+                  passHref
+                  legacyBehavior
+                >
+                  <TabLink active={activeTab === "permissions"}>
+                    <CheckCircledIcon />
+                    <Text>Permissions</Text>
+                  </TabLink>
+                </Link>
+                <Link
                   href="/user-settings?tab=security"
                   passHref
                   legacyBehavior
@@ -145,16 +155,6 @@ export default async function SettingsPage({
                   <TabLink active={activeTab === "sessions"}>
                     <GlobeIcon />
                     <Text>Sessions</Text>
-                  </TabLink>
-                </Link>
-                <Link
-                  href="/user-settings?tab=permissions"
-                  passHref
-                  legacyBehavior
-                >
-                  <TabLink active={activeTab === "permissions"}>
-                    <CheckCircledIcon />
-                    <Text>Permissions</Text>
                   </TabLink>
                 </Link>
                 <Link
