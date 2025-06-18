@@ -16,11 +16,6 @@ export async function checkSSOStatus(organizationId: string) {
       `/api/admin/list-connections?organizationId=${organizationId}`
     );
     const data = await response.json();
-    console.log("SSO API full response:", data);
-    console.log("SSO enabled:", data.ssoEnabled);
-    console.log("Connections count:", data.count);
-    console.log("Active connections count:", data.activeCount);
-    console.log("Connections data:", data.connections);
     return data.ssoEnabled;
   } catch (error) {
     console.error("Error listing connections:", error);
@@ -34,6 +29,7 @@ export async function checkDSyncStatus(organizationId: string) {
       `/api/admin/list-directories?organizationId=${organizationId}`
     );
     const data = await response.json();
+    console.log("directory data:", data.directories);
     return data.dsyncEnabled;
   } catch (error) {
     console.error("Error listing connections:", error);

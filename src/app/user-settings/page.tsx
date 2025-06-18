@@ -7,7 +7,7 @@ import {
   UserProfileWidget,
   UserSecurityWidget,
   UserSessionsWidget,
-  UserTable,
+  TeamManagementWidget,
 } from "../components/Widgets";
 import {
   PersonIcon,
@@ -218,7 +218,10 @@ export default async function SettingsPage({
 
                 {activeTab === "team-management" && (
                   <ContentSection title="Team Management">
-                    <UserTable token={authToken} />
+                    <TeamManagementWidget
+                      token={authToken}
+                      organizationId={organizationId}
+                    />
                   </ContentSection>
                 )}
 
