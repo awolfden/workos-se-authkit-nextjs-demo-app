@@ -1,10 +1,10 @@
 import { authkitMiddleware } from "@workos-inc/authkit-nextjs";
 import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+import type { NextRequest, NextFetchEvent } from "next/server";
 
 // Create a custom middleware that wraps the authkit middleware
-async function customMiddleware(request: NextRequest) {
-  const response = await authkitMiddleware()(request, NextResponse.next());
+async function customMiddleware(request: NextRequest, event: NextFetchEvent) {
+  const response = await authkitMiddleware()(request, event);
 
   if (response) {
     // Log the session data from the response headers
@@ -28,16 +28,16 @@ async function customMiddleware(request: NextRequest) {
 
 export default customMiddleware;
 
-// Match against the pages
+// Match against ALL pages - AuthKit middleware must run on all routes where withAuth is called
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for the ones starting with:
+     * Match ALL request paths except for the ones starting with:
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * - public folder
+     * Include API routes so withAuth works everywhere
      */
-    "/((?!_next/static|_next/image|favicon.ico|public/).*)",
+    "/((?!_next/static|_next/image|favicon.ico).*)",
   ],
 };

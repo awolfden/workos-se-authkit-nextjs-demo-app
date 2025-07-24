@@ -2,7 +2,7 @@ import { getSignInUrl, withAuth, signOut } from "@workos-inc/authkit-nextjs";
 import { Button, Flex } from "@radix-ui/themes";
 
 export async function SignInButton({ large }: { large?: boolean }) {
-  const { user } = await withAuth();
+  const { user } = await withAuth({ ensureSignedIn: false });
   const authorizationUrl = await getSignInUrl();
 
   if (user) {
