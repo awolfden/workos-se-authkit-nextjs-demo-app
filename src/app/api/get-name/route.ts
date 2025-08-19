@@ -1,13 +1,16 @@
-import { getSession } from "@workos-inc/authkit-nextjs";
+import { withAuth } from "@workos-inc/authkit-nextjs";
 import { NextResponse } from "next/server";
 
 export const GET = async () => {
-  // Use 'getSession' for edge functions that don't have access to headers
-  const session = await getSession();
+  try {
+    const { user } = await withAuth();
+    
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
 
-  if (!session || !session.user) {
-    return NextResponse.json({ error: "User not found" }, { status: 404 });
+    return NextResponse.json({ name: user.firstName });
+  } catch (error) {
+    return NextResponse.json({ error: "Authentication failed" }, { status: 401 });
   }
-
-  return NextResponse.json({ name: session.user.firstName });
 };
