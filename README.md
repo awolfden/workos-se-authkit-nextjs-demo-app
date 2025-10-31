@@ -16,7 +16,7 @@ You will need a [WorkOS account](https://dashboard.workos.com/signup).
 
 3. Additionally, create a cookie password as the private key used to encrypt the session cookie. Copy the output into the environment variable `WORKOS_COOKIE_PASSWORD`.
 
-   It has to be at least 32 characters long. You can use https://1password.com/password-generator/ to generate strong passwords.
+   It has to be at least 32 characters long. You can use <https://1password.com/password-generator/> to generate strong passwords.
 
 4. Verify your `.env.local` file has the following variables filled:
 
@@ -25,6 +25,7 @@ You will need a [WorkOS account](https://dashboard.workos.com/signup).
    WORKOS_API_KEY=<YOUR_API_SECRET_KEY>
    WORKOS_COOKIE_PASSWORD=<YOUR_COOKIE_PASSWORD>
    NEXT_PUBLIC_APP_URL=http://localhost:3000
+   NEXT_PUBLIC_WORKOS_REDIRECT_URI=http://localhost:3000/callback
    ACTIONS_SECRET=<YOUR_ACTIONS_SECRET>
    ACCENT_COLOR=<RADIX_THEME_COLOR_ENUM_VALUE> # can be found here -> https://www.radix-ui.com/themes/docs/theme/color
    PROSPECT_LOGO=<URL_WITH_LOGO_IMAGE>
@@ -32,7 +33,9 @@ You will need a [WorkOS account](https://dashboard.workos.com/signup).
 
    **Note**: The `ACTIONS_SECRET` is required for server actions and should be a secure random string.
 
-5. Run the following command and navigate to [http://localhost:3000](http://localhost:3000).
+5. [Configure CORS](https://workos.com/docs/widgets/quick-start/cors-configuration) to allow `http://localhost:3000` as an "Allowed web origin" to ensure that [WorkOS Widgets] load properly.
+
+6. Run the following command and navigate to [http://localhost:3000](http://localhost:3000).
 
    ```bash
    npm install
@@ -58,6 +61,7 @@ This example demonstrates:
 | `WORKOS_API_KEY`         | Your WorkOS API Secret Key                            | Yes                   |
 | `WORKOS_COOKIE_PASSWORD` | Password for session cookie encryption (min 32 chars) | Yes                   |
 | `NEXT_PUBLIC_APP_URL`    | Your application URL                                  | Yes                   |
+| `NEXT_PUBLIC_WORKOS_REDIRECT_URI`    | Your redirect URL                                  | Yes                   |
 | `ACTIONS_SECRET`         | Secret for server actions                             | Yes                   |
 | `ACCENT_COLOR`           | Radix UI theme accent color                           | No (defaults to gold) |
 | `PROSPECT_LOGO`          | URL for the logo image in navigation                  | No                    |
