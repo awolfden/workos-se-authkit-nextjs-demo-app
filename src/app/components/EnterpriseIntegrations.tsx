@@ -1,5 +1,6 @@
 import { Text, Flex, Grid } from "@radix-ui/themes";
 import PortalButton from "./PortalButton";
+import { AdminPortalSsoConnectionWidget } from "./Widgets";
 
 interface EnterpriseIntegrationsProps {
   organizationId: string;

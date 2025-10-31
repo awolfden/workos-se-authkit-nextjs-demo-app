@@ -1,19 +1,18 @@
-import { getSignInUrl, withAuth, signOut } from "@workos-inc/authkit-nextjs";
 import { Button, Flex } from "@radix-ui/themes";
 
-export async function SignInButton({ large }: { large?: boolean }) {
-  const { user } = await withAuth();
-  const authorizationUrl = await getSignInUrl();
-
-  if (user) {
+export function SignInButton({
+  large,
+  isSignedIn,
+  authorizationUrl,
+}: {
+  large?: boolean;
+  isSignedIn: boolean;
+  authorizationUrl: string;
+}) {
+  if (isSignedIn) {
     return (
       <Flex gap="3">
-        <form
-          action={async () => {
-            "use server";
-            await signOut();
-          }}
-        >
+        <form method="POST" action="/api/sign-out">
           <Button type="submit" size={large ? "3" : "2"}>
             Sign Out
           </Button>

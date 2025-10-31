@@ -1,17 +1,17 @@
-import { withAuth } from "@workos-inc/authkit-nextjs";
 import { Text, Heading, Card, Flex, Box } from "@radix-ui/themes";
 import { CheckCircledIcon, PersonIcon } from "@radix-ui/react-icons";
 
 interface PermissionsProps {
   role: string;
+  user: { id: string; email: string };
+  permissions: string[];
 }
 
-export default async function Permissions({ role }: PermissionsProps) {
-  const { user, permissions } = await withAuth({ ensureSignedIn: true });
-  if (!user) {
-    throw new Error("Authentication required");
-  }
-
+export default function Permissions({
+  role,
+  user,
+  permissions,
+}: PermissionsProps) {
   return (
     <Flex direction="column" gap="4">
       {/* User Info Card */}

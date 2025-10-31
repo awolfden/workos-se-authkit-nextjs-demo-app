@@ -5,6 +5,7 @@ import {
   UserProfile,
   UserSecurity,
   UserSessions,
+  AdminPortalSsoConnection,
   WorkOsWidgets,
 } from "@workos-inc/widgets";
 import { Card, Text, Flex, Box } from "@radix-ui/themes";
@@ -144,5 +145,21 @@ export function OrganizationSwitcherWidget({
 }: {
   authToken: string;
 }) {
-  return <OrganizationSwitcherClient authToken={authToken} />;
+  return (
+    <WorkOsWidgets>
+      <OrganizationSwitcherClient authToken={authToken} />
+    </WorkOsWidgets>
+  );
+}
+
+export function AdminPortalSsoConnectionWidget({
+  authToken,
+}: {
+  authToken: string;
+}) {
+  return (
+    <WorkOsWidgets>
+      <AdminPortalSsoConnection authToken={authToken} />
+    </WorkOsWidgets>
+  );
 }

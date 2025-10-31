@@ -4,12 +4,13 @@ import "@radix-ui/themes/styles.css";
 import type { Metadata } from "next";
 import { Theme, Card, Container, Flex, Box } from "@radix-ui/themes";
 import { Footer } from "./components/Footer";
-import { SignInButton } from "./components/SignInButton";
 import {
   AuthKitProvider,
   Impersonation,
 } from "@workos-inc/authkit-nextjs/components";
 import { Navigation } from "./components/Navigation";
+import { workos } from "./workos";
+import { getSignInUrl, withAuth } from "@workos-inc/authkit-nextjs";
 import GlobalLoading from "./components/global-loading";
 import Script from "next/script";
 
@@ -20,11 +21,19 @@ export const metadata: Metadata = {
   description: "Example Next.js application demonstrating how to use AuthKit.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const { user, organizationId } = await withAuth({});
+  const authToken = organizationId
+    ? await workos.widgets.getToken({
+        userId: user?.id as string,
+        organizationId,
+      })
+    : undefined;
+  const authorizationUrl = await getSignInUrl();
   return (
     <html lang="en">
       <head>
@@ -70,8 +79,12 @@ export default function RootLayout({
                     <Flex direction="column" height="100%">
                       <Flex asChild justify="between">
                         <header>
-                          <Navigation />
-                          <SignInButton />
+                          <Navigation
+                            user={user ?? null}
+                            organizationId={organizationId}
+                            authToken={authToken}
+                            authorizationUrl={authorizationUrl}
+                          />
                         </header>
                       </Flex>
                       <Flex flexGrow="1" align="center" justify="center">

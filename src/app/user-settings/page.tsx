@@ -8,6 +8,7 @@ import {
   UserSecurityWidget,
   UserSessionsWidget,
   TeamManagementWidget,
+  AdminPortalSsoConnectionWidget,
 } from "../components/Widgets";
 import {
   PersonIcon,
@@ -26,9 +27,11 @@ export default async function SettingsPage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const { role, organizationId, user, sessionId } = await withAuth({
-    ensureSignedIn: true,
-  });
+  const { role, organizationId, user, sessionId, permissions } = await withAuth(
+    {
+      ensureSignedIn: true,
+    }
+  );
 
   console.log("[DEBUG] User Settings Page:", {
     userId: user.id,
@@ -44,6 +47,7 @@ export default async function SettingsPage({
   const authToken = await workos.widgets.getToken({
     userId: user.id,
     organizationId,
+    scopes: ["widgets:users-table:manage", "widgets:sso:manage"],
   });
 
   // Get the active tab from search params
@@ -54,6 +58,7 @@ export default async function SettingsPage({
     "sessions",
     "team-management",
     "enterprise-integrations",
+    "enterprise-integrations-new",
   ] as const;
 
   // Await searchParams before accessing its properties
@@ -177,6 +182,16 @@ export default async function SettingsPage({
                     <Text>Enterprise Integrations</Text>
                   </TabLink>
                 </Link>
+                <Link
+                  href="/user-settings?tab=enterprise-integrations-new"
+                  passHref
+                  legacyBehavior
+                >
+                  <TabLink active={activeTab === "enterprise-integrations-new"}>
+                    <Link1Icon />
+                    <Text>Enterprise Integrations NEW</Text>
+                  </TabLink>
+                </Link>
               </Tabs.List>
 
               <Flex
@@ -212,7 +227,11 @@ export default async function SettingsPage({
 
                 {activeTab === "permissions" && (
                   <ContentSection title="Role & Permissions">
-                    <Permissions role={role} />
+                    <Permissions
+                      role={role}
+                      user={user}
+                      permissions={permissions ?? []}
+                    />
                   </ContentSection>
                 )}
 
@@ -228,6 +247,12 @@ export default async function SettingsPage({
                 {activeTab === "enterprise-integrations" && (
                   <ContentSection title="Enterprise Integrations">
                     <EnterpriseIntegrations organizationId={organizationId} />
+                  </ContentSection>
+                )}
+
+                {activeTab === "enterprise-integrations-new" && (
+                  <ContentSection title="Enterprise Integrations NEW">
+                    <AdminPortalSsoConnectionWidget authToken={authToken} />
                   </ContentSection>
                 )}
               </Flex>

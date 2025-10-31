@@ -1,11 +1,12 @@
 import NextLink from "next/link";
-import { withAuth } from "@workos-inc/authkit-nextjs";
+import { withAuth, getSignInUrl } from "@workos-inc/authkit-nextjs";
 import { Button, Flex, Heading, Text, Box } from "@radix-ui/themes";
 import { SignInButton } from "./components/SignInButton";
 import { jwtDecode } from "jwt-decode";
 
 export default async function HomePage() {
   const { user, accessToken } = await withAuth();
+  const authorizationUrl = await getSignInUrl();
 
   // Decode and log the token if it exists
   if (accessToken) {
@@ -61,7 +62,11 @@ export default async function HomePage() {
           </Flex>
         ) : (
           <Flex direction="column" align="center" gap="4">
-            <SignInButton large />
+            <SignInButton
+              large
+              isSignedIn={false}
+              authorizationUrl={authorizationUrl}
+            />
           </Flex>
         )}
       </Flex>
