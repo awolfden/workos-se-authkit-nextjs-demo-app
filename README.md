@@ -33,7 +33,7 @@ You will need a [WorkOS account](https://dashboard.workos.com/signup).
 
    **Note**: The `ACTIONS_SECRET` is required for server actions and should be a secure random string.
 
-5. [Configure CORS](https://workos.com/docs/widgets/quick-start/cors-configuration) to allow `http://localhost:3000` as an "Allowed web origin" to ensure that [WorkOS Widgets] load properly.
+5. [Configure CORS](https://workos.com/docs/widgets/quick-start/cors-configuration) to allow `http://localhost:3000` as an "Allowed web origin" to ensure that [WorkOS Widgets](https://workos.com/docs/widgets) load properly.
 
 6. Run the following command and navigate to [http://localhost:3000](http://localhost:3000).
 
