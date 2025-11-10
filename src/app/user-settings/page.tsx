@@ -18,21 +18,18 @@ import {
   CheckCircledIcon,
   GearIcon,
   GlobeIcon,
-  CodeIcon,
-  TokensIcon,
   ActivityLogIcon,
 } from "@radix-ui/react-icons";
 import Permissions from "../components/Permissions";
 import { EnterpriseIntegrations } from "../components/EnterpriseIntegrations";
 import Link from "next/link";
-import { jwtDecode } from "jwt-decode";
 
 export default async function SettingsPage({
   searchParams,
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const { role, organizationId, user, sessionId, accessToken } = await withAuth({
+  const { role, organizationId, user, sessionId } = await withAuth({
     ensureSignedIn: true,
   });
 
@@ -52,25 +49,6 @@ export default async function SettingsPage({
     organizationId,
   });
 
-  // Decode access token if available
-  let decodedToken: any = null;
-  if (accessToken) {
-    try {
-      decodedToken = jwtDecode(accessToken);
-    } catch (error) {
-      console.error("Failed to decode access token:", error);
-    }
-  }
-
-  // Prepare WorkOS response data
-  const workosResponse = {
-    user,
-    organizationId,
-    role,
-    sessionId,
-    accessToken: accessToken || null,
-  };
-
   // Get the active tab from search params
   const validTabs = [
     "profile",
@@ -80,8 +58,6 @@ export default async function SettingsPage({
     "user-sessions",
     "team-management",
     "enterprise-integrations",
-    "workos-response",
-    "decoded-token",
   ] as const;
 
   // Await searchParams before accessing its properties
@@ -215,26 +191,6 @@ export default async function SettingsPage({
                     <Text>Enterprise Integrations</Text>
                   </TabLink>
                 </Link>
-                <Link
-                  href="/user-settings?tab=workos-response"
-                  passHref
-                  legacyBehavior
-                >
-                  <TabLink active={activeTab === "workos-response"}>
-                    <CodeIcon />
-                    <Text>WorkOS Response</Text>
-                  </TabLink>
-                </Link>
-                <Link
-                  href="/user-settings?tab=decoded-token"
-                  passHref
-                  legacyBehavior
-                >
-                  <TabLink active={activeTab === "decoded-token"}>
-                    <TokensIcon />
-                    <Text>Decoded Access Token</Text>
-                  </TabLink>
-                </Link>
               </Tabs.List>
 
               <Flex
@@ -289,7 +245,7 @@ export default async function SettingsPage({
                       />
                     </ContentSection>
                     <ContentSection title="Team Member Sessions">
-                      <TeamUserSessions 
+                      <TeamUserSessions
                         currentUserId={user.id}
                         currentSessionId={sessionId}
                       />
@@ -300,60 +256,6 @@ export default async function SettingsPage({
                 {activeTab === "enterprise-integrations" && (
                   <ContentSection title="Enterprise Integrations">
                     <EnterpriseIntegrations organizationId={organizationId} />
-                  </ContentSection>
-                )}
-
-                {activeTab === "workos-response" && (
-                  <ContentSection title="WorkOS Response">
-                    <Flex direction="column" gap="3">
-                      <Text size="3" color="gray">
-                        Raw authentication data returned from WorkOS after successful authentication.
-                      </Text>
-                      <pre
-                        style={{
-                          backgroundColor: "var(--gray-2)",
-                          padding: "16px",
-                          borderRadius: "var(--radius-3)",
-                          border: "1px solid var(--gray-5)",
-                          overflow: "auto",
-                          fontSize: "12px",
-                          lineHeight: "1.4",
-                          maxHeight: "400px",
-                        }}
-                      >
-                        {JSON.stringify(workosResponse, null, 2)}
-                      </pre>
-                    </Flex>
-                  </ContentSection>
-                )}
-
-                {activeTab === "decoded-token" && (
-                  <ContentSection title="Decoded Access Token">
-                    <Flex direction="column" gap="3">
-                      <Text size="3" color="gray">
-                        JWT access token decoded to show claims and user information.
-                      </Text>
-                      {decodedToken ? (
-                        <pre
-                          style={{
-                            backgroundColor: "var(--gray-2)",
-                            padding: "16px",
-                            borderRadius: "var(--radius-3)",
-                            border: "1px solid var(--gray-5)",
-                            overflow: "auto",
-                            fontSize: "12px",
-                            lineHeight: "1.4",
-                            maxHeight: "400px",
-                          }}
-                        >
-                          {JSON.stringify(decodedToken, null, 2)}
-                        </pre>
-                      ) : (
-                        <Text size="3" color="orange">
-                          No access token available or failed to decode.
-                        </Text>
-                      )}
-                    </Flex>
                   </ContentSection>
                 )}
               </Flex>
