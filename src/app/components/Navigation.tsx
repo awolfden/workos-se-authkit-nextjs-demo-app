@@ -13,9 +13,17 @@ export async function Navigation() {
 
   const PROSPECT_LOGO = process.env.PROSPECT_LOGO;
 
-  const authToken = await workos.widgets.getToken({
+  const widgetScopes: string[] = [
+    "widgets:users-table:manage",
+    "widgets:sso:manage",
+    "widgets:api-keys:manage",
+    "widgets:domain-verification:manage",
+  ];
+
+  const authToken = await (workos.widgets as any).getToken({
     userId: user.id,
     organizationId,
+    scopes: widgetScopes,
   });
 
   return (

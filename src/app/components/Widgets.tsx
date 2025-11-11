@@ -6,6 +6,7 @@ import {
   UserSecurity,
   UserSessions,
   WorkOsWidgets,
+  ApiKeys,
 } from "@workos-inc/widgets";
 import { Card, Text, Flex, Box } from "@radix-ui/themes";
 import { InfoCircledIcon } from "@radix-ui/react-icons";
@@ -145,4 +146,12 @@ export function OrganizationSwitcherWidget({
   authToken: string;
 }) {
   return <OrganizationSwitcherClient authToken={authToken} />;
+}
+
+export function ApiKeysWidget({ token }: { token: string }) {
+  return (
+    <WorkOsWidgets>
+      <ApiKeys authToken={token} />
+    </WorkOsWidgets>
+  );
 }

@@ -19,9 +19,17 @@ export default async function OrganizationSwitcherComponent() {
     return <p>User does not belong to an organization</p>;
   }
 
-  const authToken = await workos.widgets.getToken({
+  const widgetScopes: string[] = [
+    "widgets:users-table:manage",
+    "widgets:sso:manage",
+    "widgets:api-keys:manage",
+    "widgets:domain-verification:manage",
+  ];
+
+  const authToken = await (workos.widgets as any).getToken({
     userId: user.id,
     organizationId,
+    scopes: widgetScopes,
   });
 
   const headersList = await headers();

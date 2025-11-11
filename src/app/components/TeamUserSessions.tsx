@@ -1,15 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Flex, Text, Card, Badge, Button, Separator } from "@radix-ui/themes";
-import { 
-  PersonIcon, 
-  TrashIcon, 
-  ChevronDownIcon, 
+import {
+  Flex,
+  Text,
+  Card,
+  Badge,
+  Button,
+  Separator,
+  Table,
+  IconButton,
+  Code,
+} from "@radix-ui/themes";
+import {
+  PersonIcon,
+  TrashIcon,
+  ChevronDownIcon,
   ChevronRightIcon,
   CalendarIcon,
   GlobeIcon,
-  DesktopIcon
+  DesktopIcon,
+  CopyIcon,
 } from "@radix-ui/react-icons";
 
 interface User {
@@ -55,7 +66,10 @@ interface TeamUserSessionsProps {
   currentSessionId?: string;
 }
 
-export function TeamUserSessions({ currentUserId, currentSessionId }: TeamUserSessionsProps = {}) {
+export function TeamUserSessions({
+  currentUserId,
+  currentSessionId,
+}: TeamUserSessionsProps = {}) {
   const [users, setUsers] = useState<UserWithSessions[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -77,14 +91,16 @@ export function TeamUserSessions({ currentUserId, currentSessionId }: TeamUserSe
           sessionsLoading: false,
           sessionsExpanded: false,
         }))
-        .sort((a, b) => {
+        .sort((a: UserWithSessions, b: UserWithSessions) => {
           // Sort by name if available, otherwise by email
-          const aName = a.user?.firstName && a.user?.lastName 
-            ? `${a.user.firstName} ${a.user.lastName}` 
-            : a.user?.email || a.userId;
-          const bName = b.user?.firstName && b.user?.lastName 
-            ? `${b.user.firstName} ${b.user.lastName}` 
-            : b.user?.email || b.userId;
+          const aName =
+            a.user?.firstName && a.user?.lastName
+              ? `${a.user.firstName} ${a.user.lastName}`
+              : a.user?.email || a.userId;
+          const bName =
+            b.user?.firstName && b.user?.lastName
+              ? `${b.user.firstName} ${b.user.lastName}`
+              : b.user?.email || b.userId;
           return aName.localeCompare(bName);
         });
       setUsers(usersWithSessions);
@@ -96,11 +112,11 @@ export function TeamUserSessions({ currentUserId, currentSessionId }: TeamUserSe
   };
 
   const fetchUserSessions = async (userId: string) => {
-    setUsers(prev => prev.map(user => 
-      user.userId === userId 
-        ? { ...user, sessionsLoading: true } 
-        : user
-    ));
+    setUsers((prev) =>
+      prev.map((user) =>
+        user.userId === userId ? { ...user, sessionsLoading: true } : user
+      )
+    );
 
     try {
       const response = await fetch(`/api/list-user-sessions?userId=${userId}`);
@@ -108,18 +124,25 @@ export function TeamUserSessions({ currentUserId, currentSessionId }: TeamUserSe
         throw new Error("Failed to fetch user sessions");
       }
       const data = await response.json();
-      
-      setUsers(prev => prev.map(user => 
-        user.userId === userId 
-          ? { ...user, sessions: data.sessions, sessionsLoading: false, sessionsExpanded: true }
-          : user
-      ));
+
+      setUsers((prev) =>
+        prev.map((user) =>
+          user.userId === userId
+            ? {
+                ...user,
+                sessions: data.sessions,
+                sessionsLoading: false,
+                sessionsExpanded: true,
+              }
+            : user
+        )
+      );
     } catch (err) {
-      setUsers(prev => prev.map(user => 
-        user.userId === userId 
-          ? { ...user, sessionsLoading: false }
-          : user
-      ));
+      setUsers((prev) =>
+        prev.map((user) =>
+          user.userId === userId ? { ...user, sessionsLoading: false } : user
+        )
+      );
       setError("Failed to fetch user sessions");
     }
   };
@@ -127,42 +150,47 @@ export function TeamUserSessions({ currentUserId, currentSessionId }: TeamUserSe
   const revokeAllUserSessions = async (userId: string) => {
     setRevokingUserId(userId);
     try {
-      const response = await fetch(`/api/revoke-all-user-sessions?userId=${userId}`, {
-        method: "DELETE",
-      });
-      
+      const response = await fetch(
+        `/api/revoke-all-user-sessions?userId=${userId}`,
+        {
+          method: "DELETE",
+        }
+      );
+
       if (!response.ok) {
         throw new Error("Failed to revoke all user sessions");
       }
-      
+
       const data = await response.json();
-      
+
       // If the API indicates the user should be logged out
       if (data.shouldLogout) {
         // Force a full page reload to clear any cached auth state
         window.location.href = "/api/auth/logout";
         return;
       }
-      
+
       // Refresh sessions for this user
       await fetchUserSessions(userId);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to revoke sessions");
+      setError(
+        err instanceof Error ? err.message : "Failed to revoke sessions"
+      );
     } finally {
       setRevokingUserId(null);
     }
   };
 
   const toggleUserSessions = async (userId: string) => {
-    const user = users.find(u => u.userId === userId);
+    const user = users.find((u) => u.userId === userId);
     if (!user) return;
 
     if (user.sessionsExpanded) {
-      setUsers(prev => prev.map(u => 
-        u.userId === userId 
-          ? { ...u, sessionsExpanded: false }
-          : u
-      ));
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.userId === userId ? { ...u, sessionsExpanded: false } : u
+        )
+      );
     } else {
       await fetchUserSessions(userId);
     }
@@ -197,18 +225,21 @@ export function TeamUserSessions({ currentUserId, currentSessionId }: TeamUserSe
       return `${user.user.firstName} ${user.user.lastName}`;
     }
     // Should always have email from organization membership data
-    return user.user?.email || 'Unknown User';
+    return user.user?.email || "Unknown User";
   };
 
   const getUserSubtitle = (user: User) => {
-    const role = typeof user.role === 'object' ? user.role?.slug || 'Unknown Role' : user.role;
-    
+    const role =
+      typeof user.role === "object"
+        ? user.role?.slug || "Unknown Role"
+        : user.role;
+
     // If we have a name, show email + role in subtitle
     // If we only have email, just show role in subtitle
     if (user.user?.firstName && user.user?.lastName && user.user?.email) {
       return `${user.user.email} • ${role}`;
     }
-    
+
     // If we're showing email as the display name, just show role
     return role;
   };
@@ -256,142 +287,263 @@ export function TeamUserSessions({ currentUserId, currentSessionId }: TeamUserSe
 
   return (
     <Flex direction="column" gap="4">
-      <Text size="3" color="gray">
-        Manage sessions for all team members. Admins can view and revoke sessions for any user.
-      </Text>
-      
-      <Text size="4" weight="bold">
-        Team Member Sessions ({users.length} users)
+      <Text size="2" weight="regular" color="gray">
+        ({users.length} users)
       </Text>
 
-      <Flex direction="column" gap="3">
-        {users.map((user) => (
-          <Card key={user.userId} style={{ padding: "16px" }}>
-            <Flex direction="column" gap="3">
-              <Flex justify="between" align="center">
-                <Flex align="center" gap="2">
-                  <PersonIcon />
-                  <Flex direction="column" gap="1">
-                    <Text size="3" weight="bold">
-                      {getUserDisplayName(user)}
-                      {user.userId === currentUserId && (
-                        <Badge color="blue" variant="soft" size="1" style={{ marginLeft: "8px" }}>
-                          You
-                        </Badge>
-                      )}
-                    </Text>
-                    <Text size="2" color="gray">
-                      {getUserSubtitle(user)}
-                    </Text>
-                  </Flex>
-                </Flex>
-                <Flex align="center" gap="2">
-                  <Badge 
-                    color={user.status === "active" ? "green" : "gray"} 
-                    variant="soft"
-                  >
-                    {user.status}
-                  </Badge>
-                  <Button
-                    size="1"
-                    variant="soft"
-                    onClick={() => toggleUserSessions(user.userId)}
-                    disabled={user.sessionsLoading}
-                  >
-                    {user.sessionsLoading ? (
-                      "Loading..."
-                    ) : (
-                      <>
-                        {user.sessionsExpanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
-                        {user.sessionsExpanded ? "Hide" : "Show"} Sessions
-                      </>
-                    )}
-                  </Button>
-                  {user.sessions.length > 0 && (
-                    <Button
-                      size="1"
-                      color="red"
-                      variant="soft"
-                      onClick={() => revokeAllUserSessions(user.userId)}
-                      disabled={revokingUserId === user.userId}
-                    >
-                      {revokingUserId === user.userId ? (
-                        "Revoking..."
-                      ) : (
-                        <>
-                          <TrashIcon width="12" height="12" />
-                          Revoke All Sessions
-                        </>
-                      )}
-                    </Button>
-                  )}
-                </Flex>
-              </Flex>
-
-              {user.sessionsExpanded && (
-                <Flex direction="column" gap="2" style={{ marginTop: "12px" }}>
-                  <Separator />
-                  {user.sessions.length === 0 ? (
-                    <Text size="2" color="gray" style={{ padding: "8px 0" }}>
-                      No active sessions
-                    </Text>
-                  ) : (
-                    <Flex direction="column" gap="2">
-                      <Text size="2" weight="medium" color="gray">
-                        Active Sessions ({user.sessions.length})
+      <Flex direction="column" gap="2">
+        <Table.Root
+          variant="surface"
+          size="1"
+          style={{ fontSize: "11px", lineHeight: 1.2 }}
+        >
+          <Table.Header>
+            <Table.Row>
+              <Table.ColumnHeaderCell>User</Table.ColumnHeaderCell>
+              <Table.ColumnHeaderCell>Email/Role</Table.ColumnHeaderCell>
+              <Table.ColumnHeaderCell>Status</Table.ColumnHeaderCell>
+              <Table.ColumnHeaderCell>Sessions</Table.ColumnHeaderCell>
+              <Table.ColumnHeaderCell style={{ width: "120px" }}>
+                Actions
+              </Table.ColumnHeaderCell>
+            </Table.Row>
+          </Table.Header>
+          <Table.Body>
+            {users.map((user) => {
+              const displayName = getUserDisplayName(user);
+              const subtitle = getUserSubtitle(user);
+              return (
+                <>
+                  <Table.Row key={user.userId}>
+                    <Table.RowHeaderCell style={{ whiteSpace: "nowrap" }}>
+                      <Flex align="center" gap="2" style={{ minWidth: 0 }}>
+                        <PersonIcon width="14" height="14" />
+                        <Flex
+                          direction="row"
+                          gap="2"
+                          align="center"
+                          style={{ minWidth: 0 }}
+                        >
+                          <Text
+                            size="1"
+                            weight="bold"
+                            style={{
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              maxWidth: "220px",
+                            }}
+                          >
+                            {displayName}
+                          </Text>
+                          {user.userId === currentUserId && (
+                            <Badge color="blue" variant="soft" size="1">
+                              You
+                            </Badge>
+                          )}
+                        </Flex>
+                      </Flex>
+                    </Table.RowHeaderCell>
+                    <Table.Cell style={{ whiteSpace: "nowrap" }}>
+                      <Text
+                        size="1"
+                        color="gray"
+                        style={{
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          maxWidth: "260px",
+                        }}
+                      >
+                        {subtitle}
                       </Text>
-                      {user.sessions.map((session) => (
-                        <Card key={session.id} style={{ padding: "12px", backgroundColor: "var(--gray-1)" }}>
-                          <Flex direction="column" gap="2">
-                            <Flex justify="between" align="center">
-                              <Flex align="center" gap="2">
-                                <DesktopIcon width="14" height="14" />
-                                <Text size="2" weight="medium">
-                                  {getSessionDisplayName(session)}
-                                </Text>
-                              </Flex>
-                              <Badge color="green" variant="soft" size="1">
-                                Active
-                              </Badge>
-                            </Flex>
-                            
-                            <Flex direction="column" gap="1">
-                              <Flex align="center" gap="2">
-                                <CalendarIcon width="12" height="12" />
-                                <Text size="1" color="gray">
-                                  Created: {formatDate(session.createdAt)}
-                                </Text>
-                              </Flex>
-                              {session.ipAddress && (
-                                <Flex align="center" gap="2">
-                                  <GlobeIcon width="12" height="12" />
-                                  <Text size="1" color="gray">
-                                    IP: {session.ipAddress}
-                                  </Text>
-                                </Flex>
-                              )}
-                              {session.userAgent && (
-                                <Flex gap="1">
-                                  <Badge color="blue" variant="soft" size="1">
-                                    {getBrowserFromUserAgent(session.userAgent)}
-                                  </Badge>
-                                  <Badge color="purple" variant="soft" size="1">
-                                    {getOSFromUserAgent(session.userAgent)}
-                                  </Badge>
-                                </Flex>
-                              )}
-                            </Flex>
-                          </Flex>
-                        </Card>
-                      ))}
-                    </Flex>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <Badge
+                        color={user.status === "active" ? "green" : "gray"}
+                        variant="soft"
+                        size="1"
+                      >
+                        {user.status}
+                      </Badge>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <Text size="1">{user.sessions.length}</Text>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <Flex gap="2" align="center">
+                        <IconButton
+                          size="1"
+                          variant="soft"
+                          onClick={() => toggleUserSessions(user.userId)}
+                          disabled={user.sessionsLoading}
+                          title={
+                            user.sessionsExpanded
+                              ? "Hide sessions"
+                              : "Show sessions"
+                          }
+                          aria-label={
+                            user.sessionsExpanded
+                              ? "Hide sessions"
+                              : "Show sessions"
+                          }
+                        >
+                          {user.sessionsExpanded ? (
+                            <ChevronDownIcon />
+                          ) : (
+                            <ChevronRightIcon />
+                          )}
+                        </IconButton>
+                        {user.sessions.length > 0 && (
+                          <IconButton
+                            size="1"
+                            color="red"
+                            variant="soft"
+                            onClick={() => revokeAllUserSessions(user.userId)}
+                            disabled={revokingUserId === user.userId}
+                            title="Revoke all sessions"
+                            aria-label="Revoke all sessions"
+                          >
+                            <TrashIcon width="12" height="12" />
+                          </IconButton>
+                        )}
+                      </Flex>
+                    </Table.Cell>
+                  </Table.Row>
+
+                  {user.sessionsExpanded && (
+                    <Table.Row key={`${user.userId}-details`}>
+                      <Table.Cell colSpan={5} style={{ padding: 0 }}>
+                        {user.sessions.length === 0 ? (
+                          <Text
+                            size="1"
+                            color="gray"
+                            style={{
+                              padding: "6px 12px",
+                              marginLeft: "20px",
+                              borderLeft: "2px solid var(--gray-6)",
+                              display: "block",
+                            }}
+                          >
+                            No active sessions
+                          </Text>
+                        ) : (
+                          <div
+                            style={{
+                              padding: "6px 8px",
+                              marginLeft: "20px",
+                              borderLeft: "2px solid var(--gray-6)",
+                              backgroundColor: "var(--gray-1)",
+                            }}
+                          >
+                            <Table.Root
+                              variant="ghost"
+                              size="1"
+                              style={{ fontSize: "11px", lineHeight: 1.2 }}
+                            >
+                              <Table.Body>
+                                {user.sessions.map((session) => (
+                                  <Table.Row key={session.id}>
+                                    <Table.RowHeaderCell>
+                                      <Flex align="center" gap="2">
+                                        <DesktopIcon width="12" height="12" />
+                                        <Flex align="center" gap="1">
+                                          <TruncatedId
+                                            id={session.id}
+                                            max={35}
+                                          />
+                                        </Flex>
+                                      </Flex>
+                                    </Table.RowHeaderCell>
+                                    <Table.Cell>
+                                      <Text size="1" color="gray">
+                                        {formatDate(session.createdAt)}
+                                      </Text>
+                                    </Table.Cell>
+                                    {/* <Table.Cell>
+                                      <Text size="1" color="gray">
+                                        {session.ipAddress || "-"}
+                                      </Text>
+                                    </Table.Cell> */}
+                                    <Table.Cell>
+                                      {session.userAgent ? (
+                                        <Flex gap="1">
+                                          <Badge
+                                            color="blue"
+                                            variant="soft"
+                                            size="1"
+                                          >
+                                            {getBrowserFromUserAgent(
+                                              session.userAgent
+                                            )}
+                                          </Badge>
+                                          <Badge
+                                            color="purple"
+                                            variant="soft"
+                                            size="1"
+                                          >
+                                            {getOSFromUserAgent(
+                                              session.userAgent
+                                            )}
+                                          </Badge>
+                                        </Flex>
+                                      ) : (
+                                        <Text size="1" color="gray">
+                                          -
+                                        </Text>
+                                      )}
+                                    </Table.Cell>
+                                    <Table.Cell>
+                                      <Badge
+                                        color="green"
+                                        variant="soft"
+                                        size="1"
+                                      >
+                                        Active
+                                      </Badge>
+                                    </Table.Cell>
+                                  </Table.Row>
+                                ))}
+                              </Table.Body>
+                            </Table.Root>
+                          </div>
+                        )}
+                      </Table.Cell>
+                    </Table.Row>
                   )}
-                </Flex>
-              )}
-            </Flex>
-          </Card>
-        ))}
+                </>
+              );
+            })}
+          </Table.Body>
+        </Table.Root>
       </Flex>
+    </Flex>
+  );
+}
+
+function TruncatedId({ id, max = 8 }: { id: string; max?: number }) {
+  const display = id.length > max ? `…${id.slice(-max)}` : id;
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(id);
+    } catch (e) {
+      // no-op
+    }
+  };
+  return (
+    <Flex align="center" gap="1">
+      <Code size="1" title={id} style={{ cursor: "text", userSelect: "text" }}>
+        {display}
+      </Code>
+      <IconButton
+        size="1"
+        variant="soft"
+        title="Copy ID"
+        aria-label="Copy ID"
+        onClick={copy}
+      >
+        <CopyIcon width="12" height="12" />
+      </IconButton>
     </Flex>
   );
 }

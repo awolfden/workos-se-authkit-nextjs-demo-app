@@ -8,6 +8,7 @@ import {
   UserSecurityWidget,
   UserSessionsWidget,
   TeamManagementWidget,
+  ApiKeysWidget,
 } from "../components/Widgets";
 import { UserSessionsList } from "../components/UserSessionsList";
 import { TeamUserSessions } from "../components/TeamUserSessions";
@@ -18,6 +19,7 @@ import {
   CheckCircledIcon,
   GearIcon,
   GlobeIcon,
+  TokensIcon,
   ActivityLogIcon,
 } from "@radix-ui/react-icons";
 import Permissions from "../components/Permissions";
@@ -44,9 +46,17 @@ export default async function SettingsPage({
     return <p>User does not belong to an organization</p>;
   }
 
-  const authToken = await workos.widgets.getToken({
+  const widgetScopes: string[] = [
+    "widgets:users-table:manage",
+    "widgets:sso:manage",
+    "widgets:api-keys:manage",
+    "widgets:domain-verification:manage",
+  ];
+
+  const authToken = await (workos.widgets as any).getToken({
     userId: user.id,
     organizationId,
+    scopes: widgetScopes,
   });
 
   // Get the active tab from search params
@@ -58,6 +68,7 @@ export default async function SettingsPage({
     "user-sessions",
     "team-management",
     "enterprise-integrations",
+    "api-keys",
   ] as const;
 
   // Await searchParams before accessing its properties
@@ -191,6 +202,16 @@ export default async function SettingsPage({
                     <Text>Enterprise Integrations</Text>
                   </TabLink>
                 </Link>
+                <Link
+                  href="/user-settings?tab=api-keys"
+                  passHref
+                  legacyBehavior
+                >
+                  <TabLink active={activeTab === "api-keys"}>
+                    <TokensIcon />
+                    <Text>Create API Key</Text>
+                  </TabLink>
+                </Link>
               </Tabs.List>
 
               <Flex
@@ -237,25 +258,50 @@ export default async function SettingsPage({
                 )}
 
                 {activeTab === "team-management" && (
-                  <>
-                    <ContentSection title="Team Management">
-                      <TeamManagementWidget
-                        token={authToken}
-                        organizationId={organizationId}
-                      />
-                    </ContentSection>
-                    <ContentSection title="Team Member Sessions">
-                      <TeamUserSessions
-                        currentUserId={user.id}
-                        currentSessionId={sessionId}
-                      />
-                    </ContentSection>
-                  </>
+                  <ContentSection title="Team Management">
+                    <Tabs.Root
+                      defaultValue="management"
+                      orientation="horizontal"
+                    >
+                      <Tabs.List style={{ marginBottom: 12 }}>
+                        <Tabs.Trigger value="management">
+                          Team Management
+                        </Tabs.Trigger>
+                        <Tabs.Trigger value="member-sessions">
+                          Team Member Sessions
+                        </Tabs.Trigger>
+                      </Tabs.List>
+                      <Tabs.Content value="management">
+                        <TeamManagementWidget
+                          token={authToken}
+                          organizationId={organizationId}
+                        />
+                      </Tabs.Content>
+                      <Tabs.Content value="member-sessions">
+                        <TeamUserSessions
+                          currentUserId={user.id}
+                          currentSessionId={sessionId}
+                        />
+                      </Tabs.Content>
+                    </Tabs.Root>
+                  </ContentSection>
                 )}
 
                 {activeTab === "enterprise-integrations" && (
                   <ContentSection title="Enterprise Integrations">
                     <EnterpriseIntegrations organizationId={organizationId} />
+                  </ContentSection>
+                )}
+
+                {activeTab === "api-keys" && (
+                  <ContentSection title="Create API Key">
+                    <Flex direction="column" gap="3">
+                      <Text size="3" color="gray">
+                        Manage organization API keys. Requires role permission:
+                        widgets:api-keys:manage.
+                      </Text>
+                      <ApiKeysWidget token={authToken} />
+                    </Flex>
                   </ContentSection>
                 )}
               </Flex>
