@@ -7,6 +7,7 @@ import { jwtDecode } from "jwt-decode";
 import { CodeIcon, TokensIcon } from "@radix-ui/react-icons";
 import { workos } from "../workos";
 import { auth, calendar } from "@googleapis/calendar";
+import { GoogleAgenda } from "../components/GoogleAgenda";
 import { Octokit } from "@octokit/rest";
 
 export default async function LogsPage({
@@ -323,8 +324,88 @@ export default async function LogsPage({
           const oauth2Client = new auth.OAuth2();
           oauth2Client.setCredentials({ access_token: googleCalendarToken });
           const cal = calendar({ version: "v3", auth: oauth2Client });
-          const { data } = await cal.calendarList.list();
-          googleCalendarData = data;
+          // Fetch ALL calendars with pagination
+          const calendars: any[] = [];
+          let pageToken: string | undefined = undefined;
+          do {
+            const { data }: { data: any } = await cal.calendarList.list({
+              maxResults: 250,
+              pageToken,
+            } as any);
+            calendars.push(...(data.items || []));
+            pageToken = (data.nextPageToken as string | undefined) || undefined;
+          } while (pageToken);
+          // Use all calendars that have at least reader access (exclude freeBusy-only)
+          const selectedCalendars = calendars.filter(
+            (c) => c.accessRole && c.accessRole !== "freeBusyReader"
+          );
+          // Build time window: next 7 days
+          const now = new Date();
+          const start = new Date(now);
+          start.setHours(0, 0, 0, 0);
+          const end = new Date(start);
+          end.setDate(end.getDate() + 7);
+          const timeMin = start.toISOString();
+          const timeMax = end.toISOString();
+          // Fetch events for each selected calendar
+          const eventsPerCal = await Promise.all(
+            selectedCalendars.map(async (c: any) => {
+              try {
+                const { data: evData } = await cal.events.list({
+                  calendarId: c.id,
+                  timeMin,
+                  timeMax,
+                  singleEvents: true,
+                  orderBy: "startTime",
+                  maxResults: 100,
+                });
+                return {
+                  calendar: c,
+                  events: evData.items || [],
+                };
+              } catch (e) {
+                return { calendar: c, events: [] as any[] };
+              }
+            })
+          );
+          // Merge and annotate events
+          const combinedEvents = eventsPerCal
+            .flatMap(({ calendar, events }) =>
+              events.map((ev: any) => ({
+                ...ev,
+                _calendarId: calendar.id,
+                _calendarSummary: calendar.summary,
+                _calendarBg: calendar.backgroundColor || "var(--accent-9)",
+                _calendarFg: calendar.foregroundColor || "white",
+              }))
+            )
+            .sort((a: any, b: any) => {
+              const aStart = a.start?.dateTime || a.start?.date || "";
+              const bStart = b.start?.dateTime || b.start?.date || "";
+              return aStart.localeCompare(bStart);
+            });
+          // Group events by day
+          const formatDateKey = (dStr: string) => {
+            const d = new Date(dStr);
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, "0");
+            const day = String(d.getDate()).padStart(2, "0");
+            return `${year}-${month}-${day}`;
+          };
+          const eventsByDay: Record<string, any[]> = {};
+          for (const ev of combinedEvents) {
+            const startStr = ev.start?.dateTime || ev.start?.date;
+            if (!startStr) continue;
+            const key = formatDateKey(startStr);
+            if (!eventsByDay[key]) eventsByDay[key] = [];
+            eventsByDay[key].push(ev);
+          }
+          googleCalendarData = {
+            calendars: selectedCalendars,
+            eventsByDay,
+            timeMin,
+            timeMax,
+          };
         }
       }
     } catch (err) {
@@ -434,6 +515,7 @@ export default async function LogsPage({
                   backgroundColor: "white",
                   height: "100%",
                   overflow: "auto",
+                  overscrollBehavior: "contain",
                 }}
               >
                 {activeTab === "workos-response" && (
@@ -852,29 +934,16 @@ export default async function LogsPage({
                           {googleCalendarError}
                         </Text>
                       )}
-                      {!googleCalendarError && googleCalendarData && (
-                        <div
-                          style={{
-                            backgroundColor: "var(--gray-2)",
-                            padding: "16px",
-                            borderRadius: "var(--radius-3)",
-                            border: "1px solid var(--gray-5)",
-                            overflow: "auto",
-                            fontSize: "12px",
-                            lineHeight: "1.4",
-                            maxHeight: "400px",
-                            fontFamily:
-                              "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
-                            whiteSpace: "pre",
-                          }}
-                        >
-                          <JsonPretty data={googleCalendarData} />
-                        </div>
-                      )}
                       {!googleCalendarError && !googleCalendarData && (
                         <Text size="3" color="gray">
                           No calendar data available.
                         </Text>
+                      )}
+                      {!googleCalendarError && googleCalendarData && (
+                        <GoogleAgenda
+                          calendars={googleCalendarData.calendars}
+                          eventsByDay={googleCalendarData.eventsByDay}
+                        />
                       )}
                     </Flex>
                   </ContentSection>
