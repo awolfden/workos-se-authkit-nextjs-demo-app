@@ -7,6 +7,7 @@ import {
   UserSessions,
   WorkOsWidgets,
   ApiKeys,
+  Pipes,
 } from "@workos-inc/widgets";
 import { Card, Text, Flex, Box } from "@radix-ui/themes";
 import { InfoCircledIcon } from "@radix-ui/react-icons";
@@ -152,6 +153,14 @@ export function ApiKeysWidget({ token }: { token: string }) {
   return (
     <WorkOsWidgets>
       <ApiKeys authToken={token} />
+    </WorkOsWidgets>
+  );
+}
+
+export function PipesWidget({ token }: { token: string }) {
+  return (
+    <WorkOsWidgets>
+      <Pipes authToken={token} />
     </WorkOsWidgets>
   );
 }

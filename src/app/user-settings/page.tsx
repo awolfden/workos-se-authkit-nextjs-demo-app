@@ -9,20 +9,21 @@ import {
   UserSessionsWidget,
   TeamManagementWidget,
   ApiKeysWidget,
+  PipesWidget,
 } from "../components/Widgets";
+import "@workos-inc/widgets/styles.css";
 import { UserSessionsList } from "../components/UserSessionsList";
 import { TeamUserSessions } from "../components/TeamUserSessions";
 import {
   PersonIcon,
   LockClosedIcon,
   Link1Icon,
-  CheckCircledIcon,
   GearIcon,
   GlobeIcon,
   TokensIcon,
   ActivityLogIcon,
 } from "@radix-ui/react-icons";
-import Permissions from "../components/Permissions";
+
 import { EnterpriseIntegrations } from "../components/EnterpriseIntegrations";
 import Link from "next/link";
 
@@ -31,9 +32,11 @@ export default async function SettingsPage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const { role, organizationId, user, sessionId } = await withAuth({
-    ensureSignedIn: true,
-  });
+  const { role, organizationId, user, sessionId, accessToken } = await withAuth(
+    {
+      ensureSignedIn: true,
+    }
+  );
 
   console.log("[DEBUG] User Settings Page:", {
     userId: user.id,
@@ -46,28 +49,15 @@ export default async function SettingsPage({
     return <p>User does not belong to an organization</p>;
   }
 
-  const widgetScopes: string[] = [
-    "widgets:users-table:manage",
-    "widgets:sso:manage",
-    "widgets:api-keys:manage",
-    "widgets:domain-verification:manage",
-  ];
-
-  const authToken = await (workos.widgets as any).getToken({
-    userId: user.id,
-    organizationId,
-    scopes: widgetScopes,
-  });
-
   // Get the active tab from search params
   const validTabs = [
     "profile",
-    "permissions",
     "security",
     "sessions",
     "user-sessions",
     "team-management",
     "enterprise-integrations",
+    "pipes",
     "api-keys",
   ] as const;
 
@@ -83,6 +73,55 @@ export default async function SettingsPage({
     tabParam && validTabs.includes(tabParam as (typeof validTabs)[number])
       ? tabParam
       : "profile";
+
+  // Build scopes for widgets token used by most tabs (exclude Pipes to isolate issues)
+  const widgetScopes: string[] = [
+    "widgets:users-table:manage",
+    "widgets:sso:manage",
+    "widgets:api-keys:manage",
+    "widgets:domain-verification:manage",
+  ];
+
+  // Generate a widget token for non-Pipes tabs; keep errors visible except on the Pipes tab
+  let authToken: string | null = null;
+  try {
+    authToken = await (workos.widgets as any).getToken({
+      userId: user.id,
+      organizationId,
+      scopes: widgetScopes,
+    });
+  } catch (err) {
+    try {
+      console.error(
+        "[DEBUG] getToken error (base widgets token):",
+        JSON.stringify(err, null, 2)
+      );
+    } catch {
+      console.error("[DEBUG] getToken error (base widgets token):", err);
+    }
+    if (activeTab !== "pipes") {
+      throw err;
+    }
+  }
+
+  let pipesAuthToken: string | null = null;
+  if (activeTab === "pipes") {
+    try {
+      pipesAuthToken = await (workos.widgets as any).getToken({
+        userId: user.id,
+        organizationId,
+      });
+    } catch (err) {
+      try {
+        console.error(
+          "[DEBUG] getToken error (pipes widgets token):",
+          JSON.stringify(err, null, 2)
+        );
+      } catch {
+        console.error("[DEBUG] getToken error (pipes widgets token):", err);
+      }
+    }
+  }
 
   return (
     <>
@@ -143,16 +182,6 @@ export default async function SettingsPage({
                   </TabLink>
                 </Link>
                 <Link
-                  href="/user-settings?tab=permissions"
-                  passHref
-                  legacyBehavior
-                >
-                  <TabLink active={activeTab === "permissions"}>
-                    <CheckCircledIcon />
-                    <Text>Permissions</Text>
-                  </TabLink>
-                </Link>
-                <Link
                   href="/user-settings?tab=security"
                   passHref
                   legacyBehavior
@@ -202,6 +231,12 @@ export default async function SettingsPage({
                     <Text>Enterprise Integrations</Text>
                   </TabLink>
                 </Link>
+                <Link href="/user-settings?tab=pipes" passHref legacyBehavior>
+                  <TabLink active={activeTab === "pipes"}>
+                    <Link1Icon />
+                    <Text>Pipes</Text>
+                  </TabLink>
+                </Link>
                 <Link
                   href="/user-settings?tab=api-keys"
                   passHref
@@ -226,20 +261,20 @@ export default async function SettingsPage({
               >
                 {activeTab === "profile" && (
                   <ContentSection title="Profile Information">
-                    <UserProfileWidget token={authToken} />
+                    <UserProfileWidget token={authToken as string} />
                   </ContentSection>
                 )}
 
                 {activeTab === "security" && (
                   <ContentSection title="Security Settings">
-                    <UserSecurityWidget token={authToken} />
+                    <UserSecurityWidget token={authToken as string} />
                   </ContentSection>
                 )}
 
                 {activeTab === "sessions" && (
                   <ContentSection title="Active Sessions">
                     <UserSessionsWidget
-                      token={authToken}
+                      token={authToken as string}
                       sessionId={sessionId}
                     />
                   </ContentSection>
@@ -248,12 +283,6 @@ export default async function SettingsPage({
                 {activeTab === "user-sessions" && (
                   <ContentSection title="User Sessions (via listSessions API)">
                     <UserSessionsList />
-                  </ContentSection>
-                )}
-
-                {activeTab === "permissions" && (
-                  <ContentSection title="Role & Permissions">
-                    <Permissions role={role} />
                   </ContentSection>
                 )}
 
@@ -273,7 +302,7 @@ export default async function SettingsPage({
                       </Tabs.List>
                       <Tabs.Content value="management">
                         <TeamManagementWidget
-                          token={authToken}
+                          token={authToken as string}
                           organizationId={organizationId}
                         />
                       </Tabs.Content>
@@ -293,6 +322,20 @@ export default async function SettingsPage({
                   </ContentSection>
                 )}
 
+                {activeTab === "pipes" && (
+                  <ContentSection title="Pipes">
+                    {pipesAuthToken ? (
+                      <PipesWidget token={pipesAuthToken as string} />
+                    ) : (
+                      <Text size="3" color="orange">
+                        Unable to obtain token for Pipes. If you want to use a
+                        widgets token, set USE_WIDGETS_TOKEN_FOR_PIPES=true and
+                        ensure "widgets:pipes:manage" is granted.
+                      </Text>
+                    )}
+                  </ContentSection>
+                )}
+
                 {activeTab === "api-keys" && (
                   <ContentSection title="Create API Key">
                     <Flex direction="column" gap="3">
@@ -300,7 +343,7 @@ export default async function SettingsPage({
                         Manage organization API keys. Requires role permission:
                         widgets:api-keys:manage.
                       </Text>
-                      <ApiKeysWidget token={authToken} />
+                      <ApiKeysWidget token={authToken as string} />
                     </Flex>
                   </ContentSection>
                 )}

@@ -5,15 +5,20 @@ import "../styles/tabs.css";
 import Link from "next/link";
 import { jwtDecode } from "jwt-decode";
 import { CodeIcon, TokensIcon } from "@radix-ui/react-icons";
+import { workos } from "../workos";
+import { auth, calendar } from "@googleapis/calendar";
+import { Octokit } from "@octokit/rest";
 
 export default async function LogsPage({
   searchParams,
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const { role, organizationId, user, sessionId, accessToken } = await withAuth({
-    ensureSignedIn: true,
-  });
+  const { role, organizationId, user, sessionId, accessToken } = await withAuth(
+    {
+      ensureSignedIn: true,
+    }
+  );
 
   if (!organizationId) {
     return <p>User does not belong to an organization</p>;
@@ -39,7 +44,12 @@ export default async function LogsPage({
   };
 
   // Tabs limited to logs context
-  const validTabs = ["workos-response", "decoded-token"] as const;
+  const validTabs = [
+    "workos-response",
+    "decoded-token",
+    "github-data-integration",
+    "google-calendar-integration",
+  ] as const;
 
   const resolvedSearchParams = await searchParams;
   const tabParam =
@@ -50,6 +60,91 @@ export default async function LogsPage({
     tabParam && validTabs.includes(tabParam as (typeof validTabs)[number])
       ? tabParam
       : "workos-response";
+
+  // If viewing GitHub tab, fetch user via WorkOS Pipes + Octokit
+  let githubUser: any = null;
+  let githubError: string | null = null;
+  if (activeTab === "github-data-integration") {
+    try {
+      const tokenResp = await workos.pipes.getAccessToken({
+        provider: "github",
+        userId: user.id,
+        organizationId,
+      });
+
+      if (!tokenResp.active) {
+        githubError =
+          "GitHub token not available. User may need to connect or re-authorize." +
+          (tokenResp.error ? ` Details: ${tokenResp.error}` : "");
+      } else {
+        const pipesToken = tokenResp.accessToken;
+        if (
+          Array.isArray(pipesToken.missingScopes) &&
+          pipesToken.missingScopes.includes("user")
+        ) {
+          githubError =
+            'Missing required "user" scope. Ask the user to re-authorize with the correct permissions.';
+        } else {
+          const octokit = new Octokit({
+            auth: pipesToken.accessToken,
+          });
+          const { data } = await octokit.rest.users.getAuthenticated();
+          githubUser = data;
+        }
+      }
+    } catch (err) {
+      try {
+        githubError = `Failed to fetch GitHub user: ${JSON.stringify(err)}`;
+      } catch {
+        githubError = `Failed to fetch GitHub user: ${String(err)}`;
+      }
+    }
+  }
+
+  // If viewing Google Calendar tab, fetch access token via WorkOS Pipes
+  let googleCalendarToken: string | null = null;
+  let googleCalendarData: any = null;
+  let googleCalendarError: string | null = null;
+  if (activeTab === "google-calendar-integration") {
+    try {
+      const tokenResp = await workos.pipes.getAccessToken({
+        provider: "google-calendar",
+        userId: user.id,
+        organizationId,
+      });
+      if (!tokenResp.active) {
+        googleCalendarError =
+          "Google Calendar token not available. User may need to connect or re-authorize." +
+          (tokenResp.error ? ` Details: ${tokenResp.error}` : "");
+      } else {
+        googleCalendarToken = tokenResp.accessToken.accessToken;
+        const requiredScope =
+          "https://www.googleapis.com/auth/calendar.readonly";
+        if (
+          Array.isArray(tokenResp.accessToken.missingScopes) &&
+          tokenResp.accessToken.missingScopes.includes(requiredScope)
+        ) {
+          googleCalendarError = `Missing required "${requiredScope}" scope. Ask the user to re-authorize with the correct permissions.`;
+        } else {
+          const oauth2Client = new auth.OAuth2();
+          oauth2Client.setCredentials({ access_token: googleCalendarToken });
+          const cal = calendar({ version: "v3", auth: oauth2Client });
+          const { data } = await cal.calendarList.list();
+          googleCalendarData = data;
+        }
+      }
+    } catch (err) {
+      try {
+        googleCalendarError = `Failed to fetch Google Calendar token: ${JSON.stringify(
+          err
+        )}`;
+      } catch {
+        googleCalendarError = `Failed to fetch Google Calendar token: ${String(
+          err
+        )}`;
+      }
+    }
+  }
 
   return (
     <>
@@ -115,6 +210,26 @@ export default async function LogsPage({
                     <Text>Decoded Access Token</Text>
                   </TabLink>
                 </Link>
+                <Link
+                  href="/logs?tab=github-data-integration"
+                  passHref
+                  legacyBehavior
+                >
+                  <TabLink active={activeTab === "github-data-integration"}>
+                    <CodeIcon />
+                    <Text>Github Data Integration</Text>
+                  </TabLink>
+                </Link>
+                <Link
+                  href="/logs?tab=google-calendar-integration"
+                  passHref
+                  legacyBehavior
+                >
+                  <TabLink active={activeTab === "google-calendar-integration"}>
+                    <CodeIcon />
+                    <Text>Google Calendar Integration</Text>
+                  </TabLink>
+                </Link>
               </Tabs.List>
 
               <Flex
@@ -131,7 +246,8 @@ export default async function LogsPage({
                   <ContentSection title="WorkOS Response">
                     <Flex direction="column" gap="3">
                       <Text size="3" color="gray">
-                        Raw authentication data returned from WorkOS after successful authentication.
+                        Raw authentication data returned from WorkOS after
+                        successful authentication.
                       </Text>
                       <div
                         style={{
@@ -143,7 +259,8 @@ export default async function LogsPage({
                           fontSize: "12px",
                           lineHeight: "1.4",
                           maxHeight: "400px",
-                          fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+                          fontFamily:
+                            "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
                           whiteSpace: "pre",
                         }}
                       >
@@ -157,7 +274,8 @@ export default async function LogsPage({
                   <ContentSection title="Decoded Access Token">
                     <Flex direction="column" gap="3">
                       <Text size="3" color="gray">
-                        JWT access token decoded to show claims and user information.
+                        JWT access token decoded to show claims and user
+                        information.
                       </Text>
                       {decodedToken ? (
                         <div
@@ -180,6 +298,76 @@ export default async function LogsPage({
                       ) : (
                         <Text size="3" color="orange">
                           No access token available or failed to decode.
+                        </Text>
+                      )}
+                    </Flex>
+                  </ContentSection>
+                )}
+                {activeTab === "github-data-integration" && (
+                  <ContentSection title="Github Data Integration">
+                    <Flex direction="column" gap="3">
+                      {!githubUser && !githubError && (
+                        <Text size="3" color="gray">
+                          Loading GitHub user…
+                        </Text>
+                      )}
+                      {githubError && (
+                        <Text size="3" color="orange">
+                          {githubError}
+                        </Text>
+                      )}
+                      {githubUser && (
+                        <div
+                          style={{
+                            backgroundColor: "var(--gray-2)",
+                            padding: "16px",
+                            borderRadius: "var(--radius-3)",
+                            border: "1px solid var(--gray-5)",
+                            overflow: "auto",
+                            fontSize: "12px",
+                            lineHeight: "1.4",
+                            maxHeight: "400px",
+                            fontFamily:
+                              "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+                            whiteSpace: "pre",
+                          }}
+                        >
+                          <JsonPretty data={githubUser} />
+                        </div>
+                      )}
+                    </Flex>
+                  </ContentSection>
+                )}
+                {activeTab === "google-calendar-integration" && (
+                  <ContentSection title="Google Calendar Integration">
+                    <Flex direction="column" gap="3">
+                      {googleCalendarError && (
+                        <Text size="3" color="orange">
+                          {googleCalendarError}
+                        </Text>
+                      )}
+                      {!googleCalendarError && googleCalendarData && (
+                        <div
+                          style={{
+                            backgroundColor: "var(--gray-2)",
+                            padding: "16px",
+                            borderRadius: "var(--radius-3)",
+                            border: "1px solid var(--gray-5)",
+                            overflow: "auto",
+                            fontSize: "12px",
+                            lineHeight: "1.4",
+                            maxHeight: "400px",
+                            fontFamily:
+                              "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+                            whiteSpace: "pre",
+                          }}
+                        >
+                          <JsonPretty data={googleCalendarData} />
+                        </div>
+                      )}
+                      {!googleCalendarError && !googleCalendarData && (
+                        <Text size="3" color="gray">
+                          No calendar data available.
                         </Text>
                       )}
                     </Flex>
@@ -340,5 +528,3 @@ function JsonPretty({ data }: { data: unknown }) {
 
   return <>{renderValue(data, "root", 0)}</>;
 }
-
-
