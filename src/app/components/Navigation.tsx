@@ -41,12 +41,14 @@ export async function Navigation() {
       {user && (
         <>
           <Button asChild variant="soft">
-            <NextLink href="/logs">Logs</NextLink>
+            <NextLink href="/integrations">Integrations</NextLink>
           </Button>
           <Button asChild variant="soft">
             <NextLink href="/user-settings">Settings</NextLink>
           </Button>
-
+          <Button asChild variant="soft">
+            <NextLink href="/logs">Logs</NextLink>
+          </Button>
           <OrganizationSwitcherWidget authToken={authToken} />
         </>
       )}
