@@ -15,6 +15,7 @@ import {
   RocketIcon,
   ChatBubbleIcon,
   EnvelopeClosedIcon,
+  ExclamationTriangleIcon,
 } from "@radix-ui/react-icons";
 
 export default async function IntegrationsPage({
@@ -38,6 +39,7 @@ export default async function IntegrationsPage({
     "salesforce",
     "slack",
     "gmail",
+    "sentry",
   ] as const;
 
   const resolvedSearchParams = await searchParams;
@@ -120,6 +122,121 @@ export default async function IntegrationsPage({
         githubError = `Failed to fetch GitHub user: ${JSON.stringify(err)}`;
       } catch {
         githubError = `Failed to fetch GitHub user: ${String(err)}`;
+      }
+    }
+  }
+
+  // Sentry integration
+  let sentryData: any = null;
+  let sentryError: string | null = null;
+  if (activeTab === "sentry") {
+    try {
+      const tokenResp = await workos.pipes.getAccessToken({
+        provider: "sentry",
+        userId: user.id,
+        organizationId,
+      });
+      if (!tokenResp.active) {
+        sentryError =
+          "Sentry token not available. User may need to connect or re-authorize." +
+          (tokenResp.error ? ` Details: ${tokenResp.error}` : "");
+      } else {
+        const pipesToken = tokenResp.accessToken;
+        const sentryToken = pipesToken.accessToken;
+        
+        // Fetch Sentry organizations
+        const orgsResponse = await fetch("https://sentry.io/api/0/organizations/", {
+          headers: {
+            Authorization: `Bearer ${sentryToken}`,
+            "Content-Type": "application/json",
+          },
+        });
+
+        if (!orgsResponse.ok) {
+          sentryError = `Failed to fetch Sentry organizations: ${orgsResponse.statusText}`;
+        } else {
+          const orgs = await orgsResponse.json();
+          
+          if (orgs.length === 0) {
+            sentryError = "No Sentry organizations found.";
+          } else {
+            // Use the first organization (or you could let user select)
+            const orgSlug = orgs[0].slug;
+            
+            // Fetch projects for this organization
+            const projectsResponse = await fetch(
+              `https://sentry.io/api/0/organizations/${orgSlug}/projects/`,
+              {
+                headers: {
+                  Authorization: `Bearer ${sentryToken}`,
+                  "Content-Type": "application/json",
+                },
+              }
+            );
+
+            if (!projectsResponse.ok) {
+              sentryError = `Failed to fetch Sentry projects: ${projectsResponse.statusText}`;
+            } else {
+              const projects = await projectsResponse.json();
+              console.log(projects);
+              
+              // Fetch issues for each project
+              const projectsWithIssues = await Promise.all(
+                projects.slice(0, 10).map(async (project: any) => {
+                  try {
+                    const issuesResponse: Response = await fetch(
+                      `https://sentry.io/api/0/projects/${orgSlug}/${project.slug}/issues/`,
+                      {
+                        headers: {
+                          Authorization: `Bearer ${sentryToken}`,
+                          "Content-Type": "application/json",
+                        },
+                      }
+                    );
+
+                    console.log(issuesResponse);
+                    
+                    if (!issuesResponse.ok) {
+                      return {
+                        ...project,
+                        issues: [],
+                        issueCount: 0,
+                      };
+                    }
+                    
+                    const issues = await issuesResponse.json();
+
+                    console.log(issues);
+                    
+                    return {
+                      ...project,
+                      issues: Array.isArray(issues) ? issues.slice(0, 10) : [], // Limit to 10 most recent issues for display
+                      issueCount: Array.isArray(issues) ? issues.length : 0,
+                    };
+                  } catch {
+                    return {
+                      ...project,
+                      issues: [],
+                      issueCount: 0,
+                    };
+                  }
+                })
+              );
+
+              sentryData = {
+                organization: orgs[0],
+                projects: projectsWithIssues,
+                totalProjects: projects.length,
+              };
+            }
+          }
+        }
+      }
+    } catch (err) {
+      try {
+        sentryError = `Failed to fetch Sentry data: ${JSON.stringify(err)}`;
+      } catch {
+        sentryError = `Failed to fetch Sentry data: ${String(err)}`;
       }
     }
   }
@@ -243,6 +360,99 @@ export default async function IntegrationsPage({
     }
   }
 
+  // Slack integration
+  let slackData: any = null;
+  let slackError: string | null = null;
+  if (activeTab === "slack") {
+    try {
+      const tokenResp = await workos.pipes.getAccessToken({
+        provider: "slack",
+        userId: user.id,
+        organizationId,
+      });
+      if (!tokenResp.active) {
+        slackError =
+          "Slack token not available. User may need to connect or re-authorize." +
+          (tokenResp.error ? ` Details: ${tokenResp.error}` : "");
+      } else {
+        const pipesToken = tokenResp.accessToken;
+        const slackToken = pipesToken.accessToken;
+        
+        // Fetch team info and users using Slack Web API
+        try {
+          // Get team info
+          const teamInfoResponse = await fetch("https://slack.com/api/auth.test", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${slackToken}`,
+              "Content-Type": "application/json",
+            },
+          });
+
+          if (!teamInfoResponse.ok) {
+            slackError = `Failed to fetch Slack team info: ${teamInfoResponse.statusText}`;
+          } else {
+            const teamInfo = await teamInfoResponse.json();
+            
+            if (!teamInfo.ok) {
+              slackError = `Slack API error: ${teamInfo.error || "Unknown error"}`;
+            } else {
+              // Fetch users list
+              const usersResponse = await fetch("https://slack.com/api/users.list", {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${slackToken}`,
+                  "Content-Type": "application/json",
+                },
+              });
+
+              if (!usersResponse.ok) {
+                slackError = `Failed to fetch Slack users: ${usersResponse.statusText}`;
+              } else {
+                const usersData = await usersResponse.json();
+                
+                if (!usersData.ok) {
+                  slackError = `Slack API error: ${usersData.error || "Unknown error"}`;
+                } else {
+                  // Filter out deleted and bot users, get active members
+                  const activeUsers = (usersData.members || []).filter(
+                    (user: any) => !user.deleted && !user.is_bot && !user.is_restricted
+                  );
+                  
+                  slackData = {
+                    team: {
+                      id: teamInfo.team_id,
+                      name: teamInfo.team,
+                      url: teamInfo.url,
+                    },
+                    user: {
+                      id: teamInfo.user_id,
+                      name: teamInfo.user,
+                    },
+                    users: activeUsers,
+                    totalUsers: activeUsers.length,
+                  };
+                }
+              }
+            }
+          }
+        } catch (apiErr) {
+          try {
+            slackError = `Failed to fetch Slack data: ${JSON.stringify(apiErr)}`;
+          } catch {
+            slackError = `Failed to fetch Slack data: ${String(apiErr)}`;
+          }
+        }
+      }
+    } catch (err) {
+      try {
+        slackError = `Failed to fetch Slack token: ${JSON.stringify(err)}`;
+      } catch {
+        slackError = `Failed to fetch Slack token: ${String(err)}`;
+      }
+    }
+  }
+
   return (
     <>
       {role === "admin" ? (
@@ -345,6 +555,12 @@ export default async function IntegrationsPage({
                     <Text>Gmail</Text>
                   </TabLink>
                 </Link>
+                <Link href="/integrations?tab=sentry" passHref legacyBehavior>
+                  <TabLink active={activeTab === "sentry"}>
+                    <ExclamationTriangleIcon />
+                    <Text>Sentry</Text>
+                  </TabLink>
+                </Link>
               </Tabs.List>
 
               <Flex
@@ -427,9 +643,17 @@ export default async function IntegrationsPage({
                 {activeTab === "slack" && (
                   <ContentSection title="Slack">
                     <Flex direction="column" gap="3">
-                      <Text size="3" color="gray">
-                        Placeholder. Slack integration coming soon.
-                      </Text>
+                      {!slackData && !slackError && (
+                        <Text size="3" color="gray">
+                          Loading Slack data…
+                        </Text>
+                      )}
+                      {slackError && (
+                        <Text size="3" color="orange">
+                          {slackError}
+                        </Text>
+                      )}
+                      {slackData && <SlackDataCard slackData={slackData} />}
                     </Flex>
                   </ContentSection>
                 )}
@@ -439,6 +663,23 @@ export default async function IntegrationsPage({
                       <Text size="3" color="gray">
                         Placeholder. Gmail integration coming soon.
                       </Text>
+                    </Flex>
+                  </ContentSection>
+                )}
+                {activeTab === "sentry" && (
+                  <ContentSection title="Sentry">
+                    <Flex direction="column" gap="3">
+                      {!sentryData && !sentryError && (
+                        <Text size="3" color="gray">
+                          Loading Sentry data…
+                        </Text>
+                      )}
+                      {sentryError && (
+                        <Text size="3" color="orange">
+                          {sentryError}
+                        </Text>
+                      )}
+                      {sentryData && <SentryDataCard sentryData={sentryData} />}
                     </Flex>
                   </ContentSection>
                 )}
@@ -848,6 +1089,353 @@ function GithubProfileCard({ githubUser }: { githubUser: any }) {
             })}
           </div>
         </Flex>
+      )}
+    </Flex>
+  );
+}
+
+function SentryDataCard({ sentryData }: { sentryData: any }) {
+  const getSeverityColor = (level: string): string => {
+    switch (level?.toLowerCase()) {
+      case "fatal":
+      case "error":
+        return "var(--red-9)";
+      case "warning":
+        return "var(--orange-9)";
+      case "info":
+        return "var(--blue-9)";
+      case "debug":
+        return "var(--gray-9)";
+      default:
+        return "var(--gray-8)";
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return "N/A";
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleString();
+    } catch {
+      return dateString;
+    }
+  };
+
+  return (
+    <Flex direction="column" gap="4">
+      {/* Organization Info */}
+      <div
+        style={{
+          padding: 16,
+          borderRadius: "var(--radius-3)",
+          border: "1px solid var(--gray-5)",
+          background: "linear-gradient(135deg, var(--accent-3), white)",
+        }}
+      >
+        <Flex gap="3" align="center">
+          <div
+            style={{
+              width: 60,
+              height: 60,
+              borderRadius: "50%",
+              backgroundColor: "var(--red-9)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              border: "1px solid var(--gray-6)",
+              boxShadow: "0 1px 2px rgba(0,0,0,0.04), 0 4px 10px rgba(0,0,0,0.06)",
+            }}
+          >
+            <ExclamationTriangleIcon width={30} height={30} color="white" />
+          </div>
+          <Flex direction="column">
+            <Text size="5" weight="bold">
+              {sentryData.organization.name}
+            </Text>
+            <Text size="3" color="gray">
+              {sentryData.totalProjects} project{sentryData.totalProjects !== 1 ? "s" : ""}
+            </Text>
+          </Flex>
+        </Flex>
+      </div>
+
+      {/* Projects and Issues */}
+      {sentryData.projects && sentryData.projects.length > 0 && (
+        <Flex direction="column" gap="3">
+          <Text size="4" weight="bold">Projects & Issues</Text>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+              gap: 12,
+            }}
+          >
+            {sentryData.projects.map((project: any) => (
+              <div
+                key={project.id}
+                style={{
+                  border: "1px solid var(--gray-5)",
+                  borderRadius: "var(--radius-3)",
+                  padding: 16,
+                  backgroundColor: "white",
+                  boxShadow: "0 1px 1px rgba(0,0,0,0.02), 0 2px 8px rgba(0,0,0,0.04)",
+                }}
+              >
+                <Flex direction="column" gap="2">
+                  <Flex align="center" justify="between">
+                    <Text size="3" weight="bold">
+                      {project.name}
+                    </Text>
+                    <span
+                      style={{
+                        padding: "2px 8px",
+                        borderRadius: "999px",
+                        backgroundColor:
+                          project.issueCount > 0
+                            ? "var(--red-3)"
+                            : "var(--green-3)",
+                        border: "1px solid var(--gray-5)",
+                        fontSize: 12,
+                        color:
+                          project.issueCount > 0
+                            ? "var(--red-11)"
+                            : "var(--green-11)",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {project.issueCount} issue{project.issueCount !== 1 ? "s" : ""}
+                    </span>
+                  </Flex>
+                  {project.slug && (
+                    <Text size="2" color="gray">
+                      {project.slug}
+                    </Text>
+                  )}
+                  {project.platform && (
+                    <Flex align="center" gap="1">
+                      <Text size="2" color="gray">Platform:</Text>
+                      <Text size="2" weight="medium">{project.platform}</Text>
+                    </Flex>
+                  )}
+                </Flex>
+
+                {/* Recent Issues */}
+                {project.issues && project.issues.length > 0 && (
+                  <Flex direction="column" gap="2" style={{ marginTop: 12 }}>
+                    <Text size="2" weight="bold" color="gray">
+                      Recent Issues
+                    </Text>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {project.issues.slice(0, 5).map((issue: any) => (
+                        <div
+                          key={issue.id}
+                          style={{
+                            padding: 8,
+                            borderRadius: "var(--radius-2)",
+                            backgroundColor: "var(--gray-2)",
+                            border: "1px solid var(--gray-4)",
+                          }}
+                        >
+                          <Flex direction="column" gap="1">
+                            <Flex align="center" justify="between">
+                              <Text size="2" weight="medium" style={{ flex: 1 }}>
+                                {issue.title || issue.culprit || "Untitled Issue"}
+                              </Text>
+                              {issue.level && (
+                                <span
+                                  style={{
+                                    width: 8,
+                                    height: 8,
+                                    borderRadius: "50%",
+                                    backgroundColor: getSeverityColor(issue.level),
+                                    border: "1px solid var(--gray-6)",
+                                  }}
+                                  title={issue.level}
+                                />
+                              )}
+                            </Flex>
+                            {issue.lastSeen && (
+                              <Text size="1" color="gray">
+                                Last seen: {formatDate(issue.lastSeen)}
+                              </Text>
+                            )}
+                            {issue.count && (
+                              <Text size="1" color="gray">
+                                {issue.count} occurrence{issue.count !== 1 ? "s" : ""}
+                              </Text>
+                            )}
+                          </Flex>
+                        </div>
+                      ))}
+                    </div>
+                  </Flex>
+                )}
+              </div>
+            ))}
+          </div>
+        </Flex>
+      )}
+
+      {(!sentryData.projects || sentryData.projects.length === 0) && (
+        <Text size="3" color="gray">
+          No projects found in this Sentry organization.
+        </Text>
+      )}
+    </Flex>
+  );
+}
+
+function SlackDataCard({ slackData }: { slackData: any }) {
+  return (
+    <Flex direction="column" gap="4">
+      {/* Team Info */}
+      <div
+        style={{
+          padding: 16,
+          borderRadius: "var(--radius-3)",
+          border: "1px solid var(--gray-5)",
+          background: "linear-gradient(135deg, var(--accent-3), white)",
+        }}
+      >
+        <Flex gap="3" align="center">
+          <div
+            style={{
+              width: 60,
+              height: 60,
+              borderRadius: "var(--radius-3)",
+              backgroundColor: "var(--purple-9)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              border: "1px solid var(--gray-6)",
+              boxShadow: "0 1px 2px rgba(0,0,0,0.04), 0 4px 10px rgba(0,0,0,0.06)",
+            }}
+          >
+            <ChatBubbleIcon width={30} height={30} color="white" />
+          </div>
+          <Flex direction="column">
+            <Text size="5" weight="bold">
+              {slackData.team.name}
+            </Text>
+            <Text size="3" color="gray">
+              {slackData.totalUsers} member{slackData.totalUsers !== 1 ? "s" : ""}
+            </Text>
+            {slackData.team.url && (
+              <a
+                href={slackData.team.url}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  fontSize: 12,
+                  color: "var(--accent-11)",
+                  textDecoration: "none",
+                  marginTop: 4,
+                }}
+              >
+                Open in Slack →
+              </a>
+            )}
+          </Flex>
+        </Flex>
+      </div>
+
+      {/* Users List */}
+      {slackData.users && slackData.users.length > 0 && (
+        <Flex direction="column" gap="3">
+          <Text size="4" weight="bold">Team Members</Text>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+              gap: 12,
+            }}
+          >
+            {slackData.users.map((member: any) => (
+              <div
+                key={member.id}
+                style={{
+                  border: "1px solid var(--gray-5)",
+                  borderRadius: "var(--radius-3)",
+                  padding: 12,
+                  backgroundColor: "white",
+                  boxShadow: "0 1px 1px rgba(0,0,0,0.02), 0 2px 8px rgba(0,0,0,0.04)",
+                }}
+              >
+                <Flex gap="3" align="center">
+                  {member.profile?.image_72 ? (
+                    <img
+                      src={member.profile.image_72}
+                      alt={member.real_name || member.name}
+                      width={48}
+                      height={48}
+                      style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: "50%",
+                        border: "1px solid var(--gray-5)",
+                      }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: "50%",
+                        backgroundColor: "var(--gray-4)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        border: "1px solid var(--gray-5)",
+                      }}
+                    >
+                      <Text size="3" weight="bold" color="gray">
+                        {(member.real_name || member.name || "?")[0].toUpperCase()}
+                      </Text>
+                    </div>
+                  )}
+                  <Flex direction="column" style={{ flex: 1, minWidth: 0 }}>
+                    <Text size="3" weight="medium" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {member.real_name || member.name || "Unknown"}
+                    </Text>
+                    {member.profile?.display_name && member.profile.display_name !== member.real_name && (
+                      <Text size="2" color="gray" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        @{member.profile.display_name}
+                      </Text>
+                    )}
+                    {member.profile?.title && (
+                      <Text size="1" color="gray" style={{ marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {member.profile.title}
+                      </Text>
+                    )}
+                    {member.is_admin && (
+                      <span
+                        style={{
+                          display: "inline-block",
+                          marginTop: 4,
+                          padding: "2px 6px",
+                          borderRadius: "999px",
+                          backgroundColor: "var(--purple-3)",
+                          color: "var(--purple-11)",
+                          fontSize: 10,
+                          fontWeight: 600,
+                          width: "fit-content",
+                        }}
+                      >
+                        Admin
+                      </span>
+                    )}
+                  </Flex>
+                </Flex>
+              </div>
+            ))}
+          </div>
+        </Flex>
+      )}
+
+      {(!slackData.users || slackData.users.length === 0) && (
+        <Text size="3" color="gray">
+          No team members found.
+        </Text>
       )}
     </Flex>
   );
