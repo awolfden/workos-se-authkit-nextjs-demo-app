@@ -17,6 +17,8 @@ import {
   EnvelopeClosedIcon,
   ExclamationTriangleIcon,
   CubeIcon,
+  CheckCircledIcon,
+  ArchiveIcon,
 } from "@radix-ui/react-icons";
 
 export default async function IntegrationsPage({
@@ -42,6 +44,8 @@ export default async function IntegrationsPage({
     "gmail",
     "gitlab",
     "sentry",
+    "asana",
+    "dropbox",
   ] as const;
 
   const resolvedSearchParams = await searchParams;
@@ -145,7 +149,7 @@ export default async function IntegrationsPage({
       } else {
         const pipesToken = tokenResp.accessToken;
         const sentryToken = pipesToken.accessToken;
-        
+
         // Fetch Sentry organizations
         const orgsResponse = await fetch("https://sentry.io/api/0/organizations/", {
           headers: {
@@ -158,13 +162,13 @@ export default async function IntegrationsPage({
           sentryError = `Failed to fetch Sentry organizations: ${orgsResponse.statusText}`;
         } else {
           const orgs = await orgsResponse.json();
-          
+
           if (orgs.length === 0) {
             sentryError = "No Sentry organizations found.";
           } else {
             // Use the first organization (or you could let user select)
             const orgSlug = orgs[0].slug;
-            
+
             // Fetch projects for this organization
             const projectsResponse = await fetch(
               `https://sentry.io/api/0/organizations/${orgSlug}/projects/`,
@@ -181,7 +185,7 @@ export default async function IntegrationsPage({
             } else {
               const projects = await projectsResponse.json();
               console.log(projects);
-              
+
               // Fetch issues for each project
               const projectsWithIssues = await Promise.all(
                 projects.slice(0, 10).map(async (project: any) => {
@@ -197,7 +201,7 @@ export default async function IntegrationsPage({
                     );
 
                     console.log(issuesResponse);
-                    
+
                     if (!issuesResponse.ok) {
                       return {
                         ...project,
@@ -205,11 +209,11 @@ export default async function IntegrationsPage({
                         issueCount: 0,
                       };
                     }
-                    
+
                     const issues = await issuesResponse.json();
 
                     console.log(issues);
-                    
+
                     return {
                       ...project,
                       issues: Array.isArray(issues) ? issues.slice(0, 10) : [], // Limit to 10 most recent issues for display
@@ -362,6 +366,217 @@ export default async function IntegrationsPage({
     }
   }
 
+  // Asana integration
+  let asanaData: any = null;
+  let asanaError: string | null = null;
+  if (activeTab === "asana") {
+    try {
+      const tokenResp = await workos.pipes.getAccessToken({
+        provider: "asana",
+        userId: user.id,
+        organizationId,
+      });
+      if (!tokenResp.active) {
+        asanaError =
+          "Asana token not available. User may need to connect or re-authorize." +
+          (tokenResp.error ? ` Details: ${tokenResp.error}` : "");
+      } else {
+        const pipesToken = tokenResp.accessToken;
+        const asanaToken = pipesToken.accessToken;
+
+        try {
+          // Fetch current user info
+          const userResponse = await fetch("https://app.asana.com/api/1.0/users/me", {
+            headers: {
+              Authorization: `Bearer ${asanaToken}`,
+              "Content-Type": "application/json",
+            },
+          });
+
+          if (!userResponse.ok) {
+            const errorText = await userResponse.text();
+            asanaError = `Failed to fetch Asana user (${userResponse.status}): ${userResponse.statusText}. Details: ${errorText}`;
+          } else {
+            const userData = await userResponse.json();
+
+            if (!userData.data) {
+              asanaError = "Failed to retrieve Asana user data";
+            } else {
+              // Fetch user's workspaces first
+              const workspacesResponse = await fetch(
+                "https://app.asana.com/api/1.0/workspaces",
+                {
+                  headers: {
+                    Authorization: `Bearer ${asanaToken}`,
+                    "Content-Type": "application/json",
+                  },
+                }
+              );
+
+              if (!workspacesResponse.ok) {
+                const errorText = await workspacesResponse.text();
+                asanaError = `Failed to fetch Asana workspaces (${workspacesResponse.status}): ${workspacesResponse.statusText}. Details: ${errorText}`;
+              } else {
+                const workspacesData = await workspacesResponse.json();
+                const workspaces = workspacesData.data || [];
+
+                if (workspaces.length === 0) {
+                  asanaError = "No Asana workspaces found for this user.";
+                } else {
+                  // Use the first workspace to fetch tasks
+                  const workspaceGid = workspaces[0].gid;
+
+                  // Fetch tasks assigned to the user in this workspace
+                  const tasksResponse = await fetch(
+                    `https://app.asana.com/api/1.0/tasks?assignee=me&workspace=${workspaceGid}&opt_fields=name,completed,due_on,notes,projects.(name)&limit=50`,
+                    {
+                      headers: {
+                        Authorization: `Bearer ${asanaToken}`,
+                        "Content-Type": "application/json",
+                      },
+                    }
+                  );
+
+                  if (!tasksResponse.ok) {
+                    const errorText = await tasksResponse.text();
+                    asanaError = `Failed to fetch Asana tasks (${tasksResponse.status}): ${tasksResponse.statusText}. Details: ${errorText}`;
+                  } else {
+                    const tasksData = await tasksResponse.json();
+
+                    const tasks = tasksData.data || [];
+                    const completedTasks = tasks.filter((task: any) => task.completed);
+                    const incompleteTasks = tasks.filter((task: any) => !task.completed);
+
+                    asanaData = {
+                      user: userData.data,
+                      tasks: tasks,
+                      completedCount: completedTasks.length,
+                      incompleteCount: incompleteTasks.length,
+                      totalTasks: tasks.length,
+                    };
+                  }
+                }
+              }
+            }
+          }
+        } catch (apiErr) {
+          try {
+            asanaError = `Failed to fetch Asana data: ${JSON.stringify(apiErr)}`;
+          } catch {
+            asanaError = `Failed to fetch Asana data: ${String(apiErr)}`;
+          }
+        }
+      }
+    } catch (err) {
+      try {
+        asanaError = `Failed to fetch Asana token: ${JSON.stringify(err)}`;
+      } catch {
+        asanaError = `Failed to fetch Asana token: ${String(err)}`;
+      }
+    }
+  }
+
+  // Dropbox integration
+  let dropboxData: any = null;
+  let dropboxError: string | null = null;
+  if (activeTab === "dropbox") {
+    try {
+      const tokenResp = await workos.pipes.getAccessToken({
+        provider: "dropbox",
+        userId: user.id,
+        organizationId,
+      });
+      if (!tokenResp.active) {
+        dropboxError =
+          "Dropbox token not available. User may need to connect or re-authorize." +
+          (tokenResp.error ? ` Details: ${tokenResp.error}` : "");
+      } else {
+        const pipesToken = tokenResp.accessToken;
+        const dropboxToken = pipesToken.accessToken;
+
+        try {
+          // Fetch current account info
+          const accountResponse = await fetch(
+            "https://api.dropboxapi.com/2/users/get_current_account",
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${dropboxToken}`,
+                "Content-Type": "application/json",
+              },
+              body: "null",
+            }
+          );
+
+          if (!accountResponse.ok) {
+            const errorText = await accountResponse.text();
+            dropboxError = `Failed to fetch Dropbox account (${accountResponse.status}): ${accountResponse.statusText}. Details: ${errorText}`;
+          } else {
+            const accountData = await accountResponse.json();
+
+            // Fetch space usage
+            const spaceResponse = await fetch(
+              "https://api.dropboxapi.com/2/users/get_space_usage",
+              {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${dropboxToken}`,
+                  "Content-Type": "application/json",
+                },
+                body: "null",
+              }
+            );
+
+            let spaceData = null;
+            if (spaceResponse.ok) {
+              spaceData = await spaceResponse.json();
+            }
+
+            // Fetch list of files/folders in root
+            const listFolderResponse = await fetch(
+              "https://api.dropboxapi.com/2/files/list_folder",
+              {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${dropboxToken}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  path: "",
+                  limit: 50,
+                  include_deleted: false,
+                }),
+              }
+            );
+
+            let filesData = null;
+            if (listFolderResponse.ok) {
+              filesData = await listFolderResponse.json();
+            }
+
+            dropboxData = {
+              account: accountData,
+              space: spaceData,
+              files: filesData?.entries || [],
+            };
+          }
+        } catch (apiErr) {
+          try {
+            dropboxError = `Failed to fetch Dropbox data: ${JSON.stringify(apiErr)}`;
+          } catch {
+            dropboxError = `Failed to fetch Dropbox data: ${String(apiErr)}`;
+          }
+        }
+      }
+    } catch (err) {
+      try {
+        dropboxError = `Failed to fetch Dropbox token: ${JSON.stringify(err)}`;
+      } catch {
+        dropboxError = `Failed to fetch Dropbox token: ${String(err)}`;
+      }
+    }
+  }
+
   // Slack integration
   let slackData: any = null;
   let slackError: string | null = null;
@@ -379,7 +594,7 @@ export default async function IntegrationsPage({
       } else {
         const pipesToken = tokenResp.accessToken;
         const slackToken = pipesToken.accessToken;
-        
+
         // Fetch team info and users using Slack Web API
         try {
           // Get team info
@@ -395,7 +610,7 @@ export default async function IntegrationsPage({
             slackError = `Failed to fetch Slack team info: ${teamInfoResponse.statusText}`;
           } else {
             const teamInfo = await teamInfoResponse.json();
-            
+
             if (!teamInfo.ok) {
               slackError = `Slack API error: ${teamInfo.error || "Unknown error"}`;
             } else {
@@ -412,7 +627,7 @@ export default async function IntegrationsPage({
                 slackError = `Failed to fetch Slack users: ${usersResponse.statusText}`;
               } else {
                 const usersData = await usersResponse.json();
-                
+
                 if (!usersData.ok) {
                   slackError = `Slack API error: ${usersData.error || "Unknown error"}`;
                 } else {
@@ -420,7 +635,7 @@ export default async function IntegrationsPage({
                   const activeUsers = (usersData.members || []).filter(
                     (user: any) => !user.deleted && !user.is_bot && !user.is_restricted
                   );
-                  
+
                   slackData = {
                     team: {
                       id: teamInfo.team_id,
@@ -543,14 +758,14 @@ export default async function IntegrationsPage({
                           state: env.state,
                           lastDeployment: last
                             ? {
-                                id: last.id,
-                                status: last.status,
-                                created_at: last.created_at,
-                                updated_at: last.updated_at,
-                                ref: last.ref,
-                                sha: last.sha,
-                                user: last.user,
-                              }
+                              id: last.id,
+                              status: last.status,
+                              created_at: last.created_at,
+                              updated_at: last.updated_at,
+                              ref: last.ref,
+                              sha: last.sha,
+                              user: last.user,
+                            }
                             : null,
                         };
                       } catch {
@@ -713,311 +928,358 @@ export default async function IntegrationsPage({
                     <Text>GitLab</Text>
                   </TabLink>
                 </Link>
+                <Link href="/integrations?tab=asana" passHref legacyBehavior>
+                  <TabLink active={activeTab === "asana"}>
+                    <CheckCircledIcon />
+                    <Text>Asana</Text>
+                  </TabLink>
+                </Link>
+                <Link href="/integrations?tab=dropbox" passHref legacyBehavior>
+                  <TabLink active={activeTab === "dropbox"}>
+                    <ArchiveIcon />
+                    <Text>Dropbox</Text>
+                  </TabLink>
+                </Link>
               </Tabs.List>
 
-              <Flex
-                direction="column"
-                style={{
-                  width: "calc(100% - 240px)",
-                  padding: "20px",
-                  backgroundColor: "white",
-                  height: "100%",
-                  overflow: "auto",
-                }}
-              >
-                {activeTab === "github-data-integration" && (
-                  <ContentSection title="Github Data Integration">
-                    <Flex direction="column" gap="3">
-                      {!githubUser && !githubError && (
-                        <Text size="3" color="gray">
-                          Loading GitHub profile…
-                        </Text>
-                      )}
-                      {githubError && (
-                        <Text size="3" color="orange">
-                          {githubError}
-                        </Text>
-                      )}
-                      {githubUser && <GithubProfileCard githubUser={githubUser} />}
-                    </Flex>
-                  </ContentSection>
-                )}
+    <Flex
+      direction="column"
+      style={{
+        width: "calc(100% - 240px)",
+        padding: "20px",
+        backgroundColor: "white",
+        height: "100%",
+        overflow: "auto",
+      }}
+    >
+      {activeTab === "github-data-integration" && (
+        <ContentSection title="Github Data Integration">
+          <Flex direction="column" gap="3">
+            {!githubUser && !githubError && (
+              <Text size="3" color="gray">
+                Loading GitHub profile…
+              </Text>
+            )}
+            {githubError && (
+              <Text size="3" color="orange">
+                {githubError}
+              </Text>
+            )}
+            {githubUser && <GithubProfileCard githubUser={githubUser} />}
+          </Flex>
+        </ContentSection>
+      )}
 
-                {activeTab === "google-calendar-integration" && (
-                  <ContentSection title="Google Calendar Integration">
-                    <Flex direction="column" gap="3">
-                      {googleCalendarError && (
-                        <Text size="3" color="orange">
-                          {googleCalendarError}
-                        </Text>
-                      )}
-                      {!googleCalendarError && !googleCalendarData && (
-                        <Text size="3" color="gray">
-                          No calendar data available.
-                        </Text>
-                      )}
-                      {!googleCalendarError && googleCalendarData && (
-                        <GoogleAgenda
-                          calendars={googleCalendarData.calendars}
-                          eventsByDay={googleCalendarData.eventsByDay}
-                        />
-                      )}
-                    </Flex>
-                  </ContentSection>
-                )}
-                {activeTab === "linear" && (
-                  <ContentSection title="Linear">
-                    <Flex direction="column" gap="3">
+      {activeTab === "google-calendar-integration" && (
+        <ContentSection title="Google Calendar Integration">
+          <Flex direction="column" gap="3">
+            {googleCalendarError && (
+              <Text size="3" color="orange">
+                {googleCalendarError}
+              </Text>
+            )}
+            {!googleCalendarError && !googleCalendarData && (
+              <Text size="3" color="gray">
+                No calendar data available.
+              </Text>
+            )}
+            {!googleCalendarError && googleCalendarData && (
+              <GoogleAgenda
+                calendars={googleCalendarData.calendars}
+                eventsByDay={googleCalendarData.eventsByDay}
+              />
+            )}
+          </Flex>
+        </ContentSection>
+      )}
+      {activeTab === "linear" && (
+        <ContentSection title="Linear">
+          <Flex direction="column" gap="3">
+            <Text size="3" color="gray">
+              Placeholder. Linear integration coming soon.
+            </Text>
+          </Flex>
+        </ContentSection>
+      )}
+      {activeTab === "notion" && (
+        <ContentSection title="Notion">
+          <Flex direction="column" gap="3">
+            <Text size="3" color="gray">
+              Placeholder. Notion integration coming soon.
+            </Text>
+          </Flex>
+        </ContentSection>
+      )}
+      {activeTab === "salesforce" && (
+        <ContentSection title="Salesforce">
+          <Flex direction="column" gap="3">
+            <Text size="3" color="gray">
+              Placeholder. Salesforce integration coming soon.
+            </Text>
+          </Flex>
+        </ContentSection>
+      )}
+      {activeTab === "slack" && (
+        <ContentSection title="Slack">
+          <Flex direction="column" gap="3">
+            {!slackData && !slackError && (
+              <Text size="3" color="gray">
+                Loading Slack data…
+              </Text>
+            )}
+            {slackError && (
+              <Text size="3" color="orange">
+                {slackError}
+              </Text>
+            )}
+            {slackData && <SlackDataCard slackData={slackData} />}
+          </Flex>
+        </ContentSection>
+      )}
+      {activeTab === "gmail" && (
+        <ContentSection title="Gmail">
+          <Flex direction="column" gap="3">
+            <Text size="3" color="gray">
+              Placeholder. Gmail integration coming soon.
+            </Text>
+          </Flex>
+        </ContentSection>
+      )}
+      {activeTab === "sentry" && (
+        <ContentSection title="Sentry">
+          <Flex direction="column" gap="3">
+            {!sentryData && !sentryError && (
+              <Text size="3" color="gray">
+                Loading Sentry data…
+              </Text>
+            )}
+            {sentryError && (
+              <Text size="3" color="orange">
+                {sentryError}
+              </Text>
+            )}
+            {sentryData && <SentryDataCard sentryData={sentryData} />}
+          </Flex>
+        </ContentSection>
+      )}
+      {activeTab === "gitlab" && (
+        <ContentSection title="GitLab">
+          <Flex direction="column" gap="3">
+            {!gitlabData && !gitlabError && (
+              <Text size="3" color="gray">Loading GitLab data…</Text>
+            )}
+            {gitlabError && (
+              <Text size="3" color="orange">{gitlabError}</Text>
+            )}
+            {gitlabData && (
+              <Flex direction="column" gap="4">
+                <div
+                  style={{
+                    padding: 16,
+                    borderRadius: "var(--radius-3)",
+                    border: "1px solid var(--gray-5)",
+                    background:
+                      "linear-gradient(135deg, var(--accent-3), white)",
+                  }}
+                >
+                  <Flex gap="3" align="center">
+                    <div
+                      style={{
+                        width: 60,
+                        height: 60,
+                        borderRadius: "50%",
+                        backgroundColor: "var(--gray-3)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        border: "1px solid var(--gray-6)",
+                        boxShadow:
+                          "0 1px 2px rgba(0,0,0,0.04), 0 4px 10px rgba(0,0,0,0.06)",
+                      }}
+                    >
+                      <CubeIcon width={30} height={30} />
+                    </div>
+                    <Flex direction="column">
+                      <Text size="5" weight="bold">
+                        {gitlabData.user.name || gitlabData.user.username}
+                      </Text>
                       <Text size="3" color="gray">
-                        Placeholder. Linear integration coming soon.
+                        @{gitlabData.user.username}
                       </Text>
                     </Flex>
-                  </ContentSection>
-                )}
-                {activeTab === "notion" && (
-                  <ContentSection title="Notion">
-                    <Flex direction="column" gap="3">
-                      <Text size="3" color="gray">
-                        Placeholder. Notion integration coming soon.
-                      </Text>
-                    </Flex>
-                  </ContentSection>
-                )}
-                {activeTab === "salesforce" && (
-                  <ContentSection title="Salesforce">
-                    <Flex direction="column" gap="3">
-                      <Text size="3" color="gray">
-                        Placeholder. Salesforce integration coming soon.
-                      </Text>
-                    </Flex>
-                  </ContentSection>
-                )}
-                {activeTab === "slack" && (
-                  <ContentSection title="Slack">
-                    <Flex direction="column" gap="3">
-                      {!slackData && !slackError && (
-                        <Text size="3" color="gray">
-                          Loading Slack data…
-                        </Text>
-                      )}
-                      {slackError && (
-                        <Text size="3" color="orange">
-                          {slackError}
-                        </Text>
-                      )}
-                      {slackData && <SlackDataCard slackData={slackData} />}
-                    </Flex>
-                  </ContentSection>
-                )}
-                {activeTab === "gmail" && (
-                  <ContentSection title="Gmail">
-                    <Flex direction="column" gap="3">
-                      <Text size="3" color="gray">
-                        Placeholder. Gmail integration coming soon.
-                      </Text>
-                    </Flex>
-                  </ContentSection>
-                )}
-                {activeTab === "sentry" && (
-                  <ContentSection title="Sentry">
-                    <Flex direction="column" gap="3">
-                      {!sentryData && !sentryError && (
-                        <Text size="3" color="gray">
-                          Loading Sentry data…
-                        </Text>
-                      )}
-                      {sentryError && (
-                        <Text size="3" color="orange">
-                          {sentryError}
-                        </Text>
-                      )}
-                      {sentryData && <SentryDataCard sentryData={sentryData} />}
-                    </Flex>
-                  </ContentSection>
-                )}
-                {activeTab === "gitlab" && (
-                  <ContentSection title="GitLab">
-                    <Flex direction="column" gap="3">
-                      {!gitlabData && !gitlabError && (
-                        <Text size="3" color="gray">Loading GitLab data…</Text>
-                      )}
-                      {gitlabError && (
-                        <Text size="3" color="orange">{gitlabError}</Text>
-                      )}
-                      {gitlabData && (
-                        <Flex direction="column" gap="4">
-                          <div
-                            style={{
-                              padding: 16,
-                              borderRadius: "var(--radius-3)",
-                              border: "1px solid var(--gray-5)",
-                              background:
-                                "linear-gradient(135deg, var(--accent-3), white)",
-                            }}
-                          >
-                            <Flex gap="3" align="center">
-                              <div
-                                style={{
-                                  width: 60,
-                                  height: 60,
-                                  borderRadius: "50%",
-                                  backgroundColor: "var(--gray-3)",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  border: "1px solid var(--gray-6)",
-                                  boxShadow:
-                                    "0 1px 2px rgba(0,0,0,0.04), 0 4px 10px rgba(0,0,0,0.06)",
-                                }}
-                              >
-                                <CubeIcon width={30} height={30} />
-                              </div>
-                              <Flex direction="column">
-                                <Text size="5" weight="bold">
-                                  {gitlabData.user.name || gitlabData.user.username}
-                                </Text>
-                                <Text size="3" color="gray">
-                                  @{gitlabData.user.username}
-                                </Text>
-                              </Flex>
-                            </Flex>
-                          </div>
+                  </Flex>
+                </div>
 
-                          {/* Projects & Environments */}
-                          {Array.isArray(gitlabData.projects) &&
-                            gitlabData.projects.length > 0 ? (
-                            <Flex direction="column" gap="3">
-                              <Text size="4" weight="bold">Projects & Environments</Text>
-                              <div
-                                style={{
-                                  display: "grid",
-                                  gridTemplateColumns:
-                                    "repeat(auto-fill, minmax(320px, 1fr))",
-                                  gap: 12,
-                                }}
-                              >
-                                {gitlabData.projects.map((proj: any) => (
-                                  <div
-                                    key={proj.id}
-                                    style={{
-                                      border: "1px solid var(--gray-5)",
-                                      borderRadius: "var(--radius-3)",
-                                      padding: 16,
-                                      backgroundColor: "white",
-                                      boxShadow:
-                                        "0 1px 1px rgba(0,0,0,0.02), 0 2px 8px rgba(0,0,0,0.04)",
-                                    }}
-                                  >
-                                    <Flex direction="column" gap="2">
-                                      <a
-                                        href={proj.web_url}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        style={{ textDecoration: "none" }}
-                                      >
-                                        <Text size="3" weight="bold">
-                                          {proj.name}
-                                        </Text>
-                                      </a>
-                                      {proj.default_branch && (
-                                        <Text size="2" color="gray">
-                                          Default branch: {proj.default_branch}
-                                        </Text>
-                                      )}
-                                      <Text size="2" color="gray">
-                                        Environments:
-                                      </Text>
-                                      {Array.isArray(proj.environments) &&
-                                      proj.environments.length > 0 ? (
-                                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                                          {proj.environments.map((env: any) => {
-                                            const last = env.lastDeployment;
-                                            return (
-                                              <div
-                                                key={env.id}
-                                                style={{
-                                                  padding: 8,
-                                                  borderRadius: "var(--radius-2)",
-                                                  backgroundColor: "var(--gray-2)",
-                                                  border: "1px solid var(--gray-4)",
-                                                }}
-                                              >
-                                                <Flex direction="column" gap="1">
-                                                  <Flex align="center" justify="between">
-                                                    <Text size="2" weight="medium">
-                                                      {env.name}
-                                                    </Text>
-                                                    <span
-                                                      style={{
-                                                        padding: "2px 8px",
-                                                        borderRadius: "999px",
-                                                        backgroundColor: "var(--gray-3)",
-                                                        border: "1px solid var(--gray-5)",
-                                                        fontSize: 11,
-                                                        color: "var(--gray-11)",
-                                                      }}
-                                                    >
-                                                      {env.state}
-                                                    </span>
-                                                  </Flex>
-                                                  {last ? (
-                                                    <>
-                                                      <Text size="1" color="gray">
-                                                        Last deployment: {last.status || "unknown"} • {last.ref || ""} •{" "}
-                                                        {last.sha ? last.sha.substring(0, 8) : ""}
-                                                      </Text>
-                                                      {last.updated_at && (
-                                                        <Text size="1" color="gray">
-                                                          Updated: {new Date(last.updated_at).toLocaleString()}
-                                                        </Text>
-                                                      )}
-                                                    </>
-                                                  ) : (
-                                                    <Text size="1" color="gray">
-                                                      No deployments found.
-                                                    </Text>
-                                                  )}
-                                                </Flex>
-                                              </div>
-                                            );
-                                          })}
-                                        </div>
-                                      ) : (
-                                        <Text size="2" color="gray">
-                                          No environments detected. Create a pipeline with an environment to populate this view.
-                                        </Text>
-                                      )}
-                                    </Flex>
-                                  </div>
-                                ))}
-                              </div>
-                            </Flex>
-                          ) : (
-                            <Text size="3" color="gray">
-                              No projects found or accessible. Ensure the token has access to at least one project.
+                {/* Projects & Environments */}
+                {Array.isArray(gitlabData.projects) &&
+                  gitlabData.projects.length > 0 ? (
+                  <Flex direction="column" gap="3">
+                    <Text size="4" weight="bold">Projects & Environments</Text>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns:
+                          "repeat(auto-fill, minmax(320px, 1fr))",
+                        gap: 12,
+                      }}
+                    >
+                      {gitlabData.projects.map((proj: any) => (
+                        <div
+                          key={proj.id}
+                          style={{
+                            border: "1px solid var(--gray-5)",
+                            borderRadius: "var(--radius-3)",
+                            padding: 16,
+                            backgroundColor: "white",
+                            boxShadow:
+                              "0 1px 1px rgba(0,0,0,0.02), 0 2px 8px rgba(0,0,0,0.04)",
+                          }}
+                        >
+                          <Flex direction="column" gap="2">
+                            <a
+                              href={proj.web_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{ textDecoration: "none" }}
+                            >
+                              <Text size="3" weight="bold">
+                                {proj.name}
+                              </Text>
+                            </a>
+                            {proj.default_branch && (
+                              <Text size="2" color="gray">
+                                Default branch: {proj.default_branch}
+                              </Text>
+                            )}
+                            <Text size="2" color="gray">
+                              Environments:
                             </Text>
-                          )}
-                        </Flex>
-                      )}
-                    </Flex>
-                  </ContentSection>
+                            {Array.isArray(proj.environments) &&
+                              proj.environments.length > 0 ? (
+                              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                {proj.environments.map((env: any) => {
+                                  const last = env.lastDeployment;
+                                  return (
+                                    <div
+                                      key={env.id}
+                                      style={{
+                                        padding: 8,
+                                        borderRadius: "var(--radius-2)",
+                                        backgroundColor: "var(--gray-2)",
+                                        border: "1px solid var(--gray-4)",
+                                      }}
+                                    >
+                                      <Flex direction="column" gap="1">
+                                        <Flex align="center" justify="between">
+                                          <Text size="2" weight="medium">
+                                            {env.name}
+                                          </Text>
+                                          <span
+                                            style={{
+                                              padding: "2px 8px",
+                                              borderRadius: "999px",
+                                              backgroundColor: "var(--gray-3)",
+                                              border: "1px solid var(--gray-5)",
+                                              fontSize: 11,
+                                              color: "var(--gray-11)",
+                                            }}
+                                          >
+                                            {env.state}
+                                          </span>
+                                        </Flex>
+                                        {last ? (
+                                          <>
+                                            <Text size="1" color="gray">
+                                              Last deployment: {last.status || "unknown"} • {last.ref || ""} •{" "}
+                                              {last.sha ? last.sha.substring(0, 8) : ""}
+                                            </Text>
+                                            {last.updated_at && (
+                                              <Text size="1" color="gray">
+                                                Updated: {new Date(last.updated_at).toLocaleString()}
+                                              </Text>
+                                            )}
+                                          </>
+                                        ) : (
+                                          <Text size="1" color="gray">
+                                            No deployments found.
+                                          </Text>
+                                        )}
+                                      </Flex>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <Text size="2" color="gray">
+                                No environments detected. Create a pipeline with an environment to populate this view.
+                              </Text>
+                            )}
+                          </Flex>
+                        </div>
+                      ))}
+                    </div>
+                  </Flex>
+                ) : (
+                  <Text size="3" color="gray">
+                    No projects found or accessible. Ensure the token has access to at least one project.
+                  </Text>
                 )}
               </Flex>
-            </Tabs.Root>
+            )}
           </Flex>
-        </Flex>
-      ) : (
-        <Flex direction="column" gap="2" mb="4">
-          <Heading size="8" align="center">
-            Integrations
-          </Heading>
-          <Text size="5" align="left" color="gray">
-            {role !== "admin"
-              ? "Only Admin users can access this page."
-              : "Organization ID is required for this page."}
-          </Text>
-        </Flex>
+        </ContentSection>
       )}
+      {activeTab === "asana" && (
+        <ContentSection title="Asana">
+          <Flex direction="column" gap="3">
+            {!asanaData && !asanaError && (
+              <Text size="3" color="gray">
+                Loading Asana data…
+              </Text>
+            )}
+            {asanaError && (
+              <Text size="3" color="orange">
+                {asanaError}
+              </Text>
+            )}
+            {asanaData && <AsanaDataCard asanaData={asanaData} />}
+          </Flex>
+        </ContentSection>
+      )}
+      {activeTab === "dropbox" && (
+        <ContentSection title="Dropbox">
+          <Flex direction="column" gap="3">
+            {!dropboxData && !dropboxError && (
+              <Text size="3" color="gray">
+                Loading Dropbox data…
+              </Text>
+            )}
+            {dropboxError && (
+              <Text size="3" color="orange">
+                {dropboxError}
+              </Text>
+            )}
+            {dropboxData && <DropboxDataCard dropboxData={dropboxData} />}
+          </Flex>
+        </ContentSection>
+      )}
+        </Flex>
+      </Tabs.Root>
+          </Flex >
+        </Flex >
+      ) : (
+      <Flex direction="column" gap="2" mb="4">
+        <Heading size="8" align="center">
+          Integrations
+        </Heading>
+        <Text size="5" align="left" color="gray">
+          {role !== "admin"
+            ? "Only Admin users can access this page."
+            : "Organization ID is required for this page."}
+        </Text>
+      </Flex>
+    )
+  }
     </>
   );
 }
@@ -1754,6 +2016,431 @@ function SlackDataCard({ slackData }: { slackData: any }) {
       {(!slackData.users || slackData.users.length === 0) && (
         <Text size="3" color="gray">
           No team members found.
+        </Text>
+      )}
+    </Flex>
+  );
+}
+
+function AsanaDataCard({ asanaData }: { asanaData: any }) {
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return "No due date";
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+    } catch {
+      return dateString;
+    }
+  };
+
+  const incompleteTasks = asanaData.tasks.filter((task: any) => !task.completed);
+  const completedTasks = asanaData.tasks.filter((task: any) => task.completed);
+
+  return (
+    <Flex direction="column" gap="4">
+      {/* User Info */}
+      <div
+        style={{
+          padding: 16,
+          borderRadius: "var(--radius-3)",
+          border: "1px solid var(--gray-5)",
+          background: "linear-gradient(135deg, var(--accent-3), white)",
+        }}
+      >
+        <Flex gap="3" align="center">
+          <div
+            style={{
+              width: 60,
+              height: 60,
+              borderRadius: "50%",
+              backgroundColor: "var(--pink-9)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              border: "1px solid var(--gray-6)",
+              boxShadow: "0 1px 2px rgba(0,0,0,0.04), 0 4px 10px rgba(0,0,0,0.06)",
+            }}
+          >
+            <CheckCircledIcon width={30} height={30} color="white" />
+          </div>
+          <Flex direction="column">
+            <Text size="5" weight="bold">
+              {asanaData.user.name}
+            </Text>
+            <Text size="3" color="gray">
+              {asanaData.totalTasks} task{asanaData.totalTasks !== 1 ? "s" : ""} ({asanaData.incompleteCount} incomplete)
+            </Text>
+          </Flex>
+        </Flex>
+      </div>
+
+      {/* Task Stats */}
+      <Flex gap="3">
+        <div
+          style={{
+            flex: 1,
+            padding: 12,
+            borderRadius: "var(--radius-3)",
+            border: "1px solid var(--gray-5)",
+            backgroundColor: "var(--blue-2)",
+          }}
+        >
+          <Text size="2" color="gray" weight="medium">
+            Incomplete
+          </Text>
+          <Text size="6" weight="bold" style={{ color: "var(--blue-11)" }}>
+            {asanaData.incompleteCount}
+          </Text>
+        </div>
+        <div
+          style={{
+            flex: 1,
+            padding: 12,
+            borderRadius: "var(--radius-3)",
+            border: "1px solid var(--gray-5)",
+            backgroundColor: "var(--green-2)",
+          }}
+        >
+          <Text size="2" color="gray" weight="medium">
+            Completed
+          </Text>
+          <Text size="6" weight="bold" style={{ color: "var(--green-11)" }}>
+            {asanaData.completedCount}
+          </Text>
+        </div>
+      </Flex>
+
+      {/* Incomplete Tasks */}
+      {incompleteTasks.length > 0 && (
+        <Flex direction="column" gap="3">
+          <Text size="4" weight="bold">Active Tasks</Text>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+            }}
+          >
+            {incompleteTasks.map((task: any) => (
+              <div
+                key={task.gid}
+                style={{
+                  border: "1px solid var(--gray-5)",
+                  borderRadius: "var(--radius-3)",
+                  padding: 16,
+                  backgroundColor: "white",
+                  boxShadow: "0 1px 1px rgba(0,0,0,0.02), 0 2px 8px rgba(0,0,0,0.04)",
+                }}
+              >
+                <Flex direction="column" gap="2">
+                  <Flex align="center" justify="between">
+                    <Text size="3" weight="bold">
+                      {task.name}
+                    </Text>
+                    {task.due_on && (
+                      <span
+                        style={{
+                          padding: "2px 8px",
+                          borderRadius: "999px",
+                          backgroundColor: "var(--blue-3)",
+                          border: "1px solid var(--blue-5)",
+                          fontSize: 12,
+                          color: "var(--blue-11)",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Due: {formatDate(task.due_on)}
+                      </span>
+                    )}
+                  </Flex>
+                  {task.notes && (
+                    <Text size="2" color="gray" style={{ whiteSpace: "pre-wrap" }}>
+                      {task.notes.length > 200
+                        ? task.notes.substring(0, 200) + "..."
+                        : task.notes}
+                    </Text>
+                  )}
+                  {task.projects && task.projects.length > 0 && (
+                    <Flex gap="2" style={{ flexWrap: "wrap" }}>
+                      {task.projects.map((project: any) => (
+                        <span
+                          key={project.gid}
+                          style={{
+                            padding: "2px 8px",
+                            borderRadius: "999px",
+                            backgroundColor: "var(--gray-3)",
+                            border: "1px solid var(--gray-5)",
+                            fontSize: 11,
+                            color: "var(--gray-11)",
+                          }}
+                        >
+                          {project.name}
+                        </span>
+                      ))}
+                    </Flex>
+                  )}
+                </Flex>
+              </div>
+            ))}
+          </div>
+        </Flex>
+      )}
+
+      {/* Completed Tasks */}
+      {completedTasks.length > 0 && (
+        <Flex direction="column" gap="3">
+          <Text size="4" weight="bold">Completed Tasks</Text>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+            }}
+          >
+            {completedTasks.slice(0, 10).map((task: any) => (
+              <div
+                key={task.gid}
+                style={{
+                  border: "1px solid var(--gray-5)",
+                  borderRadius: "var(--radius-3)",
+                  padding: 12,
+                  backgroundColor: "var(--gray-2)",
+                  opacity: 0.7,
+                }}
+              >
+                <Flex direction="column" gap="1">
+                  <Flex align="center" gap="2">
+                    <CheckCircledIcon width={16} height={16} color="var(--green-9)" />
+                    <Text size="3" weight="medium" style={{ textDecoration: "line-through", color: "var(--gray-11)" }}>
+                      {task.name}
+                    </Text>
+                  </Flex>
+                  {task.projects && task.projects.length > 0 && (
+                    <Flex gap="2" style={{ flexWrap: "wrap", marginTop: 4 }}>
+                      {task.projects.map((project: any) => (
+                        <span
+                          key={project.gid}
+                          style={{
+                            padding: "2px 6px",
+                            borderRadius: "999px",
+                            backgroundColor: "var(--gray-4)",
+                            border: "1px solid var(--gray-5)",
+                            fontSize: 10,
+                            color: "var(--gray-11)",
+                          }}
+                        >
+                          {project.name}
+                        </span>
+                      ))}
+                    </Flex>
+                  )}
+                </Flex>
+              </div>
+            ))}
+          </div>
+        </Flex>
+      )}
+
+      {asanaData.tasks.length === 0 && (
+        <Text size="3" color="gray">
+          No tasks found.
+        </Text>
+      )}
+    </Flex>
+  );
+}
+
+function DropboxDataCard({ dropboxData }: { dropboxData: any }) {
+  const formatBytes = (bytes: number) => {
+    if (bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
+  };
+
+  const getFileIcon = (fileType: string) => {
+    if (fileType === "folder") return "📁";
+    return "📄";
+  };
+
+  const { account, space, files } = dropboxData;
+
+  return (
+    <Flex direction="column" gap="4">
+      {/* Account Info */}
+      <div
+        style={{
+          padding: 16,
+          borderRadius: "var(--radius-3)",
+          border: "1px solid var(--gray-5)",
+          background: "linear-gradient(135deg, var(--accent-3), white)",
+        }}
+      >
+        <Flex gap="3" align="center">
+          <div
+            style={{
+              width: 60,
+              height: 60,
+              borderRadius: "var(--radius-3)",
+              backgroundColor: "var(--blue-9)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              border: "1px solid var(--gray-6)",
+              boxShadow: "0 1px 2px rgba(0,0,0,0.04), 0 4px 10px rgba(0,0,0,0.06)",
+            }}
+          >
+            <ArchiveIcon width={30} height={30} color="white" />
+          </div>
+          <Flex direction="column">
+            <Text size="5" weight="bold">
+              {account.name?.display_name || account.email}
+            </Text>
+            {account.email && (
+              <Text size="3" color="gray">
+                {account.email}
+              </Text>
+            )}
+            {account.account_type && (
+              <Text size="2" color="gray" style={{ marginTop: 4 }}>
+                Account Type: {account.account_type[".tag"]}
+              </Text>
+            )}
+          </Flex>
+        </Flex>
+      </div>
+
+      {/* Storage Info */}
+      {space && (
+        <Flex direction="column" gap="2">
+          <Text size="4" weight="bold">Storage</Text>
+          <div
+            style={{
+              padding: 16,
+              borderRadius: "var(--radius-3)",
+              border: "1px solid var(--gray-5)",
+              backgroundColor: "white",
+              boxShadow: "0 1px 1px rgba(0,0,0,0.02), 0 2px 8px rgba(0,0,0,0.04)",
+            }}
+          >
+            <Flex direction="column" gap="3">
+              <Flex gap="3">
+                <div style={{ flex: 1 }}>
+                  <Text size="2" color="gray" weight="medium">
+                    Used
+                  </Text>
+                  <Text size="5" weight="bold">
+                    {formatBytes(space.used)}
+                  </Text>
+                </div>
+                {space.allocation && space.allocation[".tag"] === "individual" && (
+                  <div style={{ flex: 1 }}>
+                    <Text size="2" color="gray" weight="medium">
+                      Allocated
+                    </Text>
+                    <Text size="5" weight="bold">
+                      {formatBytes(space.allocation.allocated)}
+                    </Text>
+                  </div>
+                )}
+              </Flex>
+              {space.allocation && space.allocation[".tag"] === "individual" && (
+                <>
+                  <div
+                    style={{
+                      width: "100%",
+                      height: "12px",
+                      borderRadius: "999px",
+                      overflow: "hidden",
+                      border: "1px solid var(--gray-5)",
+                      backgroundColor: "var(--gray-3)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: `${Math.min((space.used / space.allocation.allocated) * 100, 100)}%`,
+                        height: "100%",
+                        backgroundColor: "var(--blue-9)",
+                      }}
+                    />
+                  </div>
+                  <Text size="2" color="gray">
+                    {Math.round((space.used / space.allocation.allocated) * 100)}% of storage used
+                  </Text>
+                </>
+              )}
+            </Flex>
+          </div>
+        </Flex>
+      )}
+
+      {/* Files and Folders */}
+      {files && files.length > 0 && (
+        <Flex direction="column" gap="3">
+          <Text size="4" weight="bold">Files & Folders</Text>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+              gap: 12,
+            }}
+          >
+            {files.map((file: any) => (
+              <div
+                key={file.id}
+                style={{
+                  border: "1px solid var(--gray-5)",
+                  borderRadius: "var(--radius-3)",
+                  padding: 12,
+                  backgroundColor: "white",
+                  boxShadow: "0 1px 1px rgba(0,0,0,0.02), 0 2px 8px rgba(0,0,0,0.04)",
+                }}
+              >
+                <Flex gap="3" align="start">
+                  <span style={{ fontSize: 32 }}>
+                    {getFileIcon(file[".tag"])}
+                  </span>
+                  <Flex direction="column" style={{ flex: 1, minWidth: 0 }}>
+                    <Text
+                      size="3"
+                      weight="medium"
+                      style={{
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {file.name}
+                    </Text>
+                    <Text size="2" color="gray">
+                      {file[".tag"] === "folder" ? "Folder" : "File"}
+                    </Text>
+                    {file.size && (
+                      <Text size="2" color="gray">
+                        {formatBytes(file.size)}
+                      </Text>
+                    )}
+                    {file.client_modified && (
+                      <Text size="1" color="gray" style={{ marginTop: 4 }}>
+                        Modified: {new Date(file.client_modified).toLocaleDateString()}
+                      </Text>
+                    )}
+                  </Flex>
+                </Flex>
+              </div>
+            ))}
+          </div>
+        </Flex>
+      )}
+
+      {(!files || files.length === 0) && (
+        <Text size="3" color="gray">
+          No files or folders found.
         </Text>
       )}
     </Flex>
