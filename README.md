@@ -29,6 +29,8 @@ You will need a [WorkOS account](https://dashboard.workos.com/signup).
    ACTIONS_SECRET=<YOUR_ACTIONS_SECRET>
    ACCENT_COLOR=<RADIX_THEME_COLOR_ENUM_VALUE> # can be found here -> https://www.radix-ui.com/themes/docs/theme/color
    PROSPECT_LOGO=<URL_WITH_LOGO_IMAGE>
+   WORKOS_API_HOSTNAME=api.workos.engineer # Optional: Custom API hostname for server-side (hostname only, no protocol)
+   NEXT_PUBLIC_WORKOS_API_HOSTNAME=api.workos.engineer # Optional: Custom API hostname for client-side widgets (hostname only, no protocol)
    ```
 
    **Note**: The `ACTIONS_SECRET` is required for server actions and should be a secure random string.
@@ -65,3 +67,5 @@ This example demonstrates:
 | `ACTIONS_SECRET`         | Secret for server actions                             | Yes                   |
 | `ACCENT_COLOR`           | Radix UI theme accent color                           | No (defaults to gold) |
 | `PROSPECT_LOGO`          | URL for the logo image in navigation                  | No                    |
+| `WORKOS_API_HOSTNAME`    | Custom API hostname for server-side requests (hostname only, e.g., `api.workos.engineer`) | No                    |
+| `NEXT_PUBLIC_WORKOS_API_HOSTNAME` | Custom API hostname for client-side widgets (hostname only, e.g., `api.workos.engineer`) | No                    |

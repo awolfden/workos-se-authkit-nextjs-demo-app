@@ -7,6 +7,18 @@ import { CreateOrganization } from "./CreateOrganization";
 import { Flex, Spinner } from "@radix-ui/themes";
 import { switchOrganization } from "../actions/switch-organization";
 
+// Helper function to get the API hostname for client-side widgets
+// Strips any protocol prefix to ensure it's just the hostname
+// Note: Only NEXT_PUBLIC_* env vars are available in client-side code
+function getApiHostname(): string | undefined {
+  const hostname = process.env.NEXT_PUBLIC_WORKOS_API_HOSTNAME;
+  if (!hostname) return undefined;
+  // Strip any existing protocol (https:// or http://) and trim
+  return hostname.replace(/^https?:\/\//, "").trim() || undefined;
+}
+
+const apiHostname = getApiHostname();
+
 export default function OrganizationSwitcherClient({
   authToken,
 }: {
@@ -45,6 +57,7 @@ export default function OrganizationSwitcherClient({
     <>
       {isLoading && <LoadingOverlay />}
       <WorkOsWidgets
+        apiHostname={apiHostname}
         theme={{
           appearance: "light",
           radius: "medium",

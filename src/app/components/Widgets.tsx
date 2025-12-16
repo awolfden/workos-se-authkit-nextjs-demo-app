@@ -13,6 +13,7 @@ import { Card, Text, Flex, Box } from "@radix-ui/themes";
 import { InfoCircledIcon } from "@radix-ui/react-icons";
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
+import "@workos-inc/widgets/styles.css";
 
 // Import the client component with dynamic import
 const OrganizationSwitcherClient = dynamic(
@@ -20,9 +21,21 @@ const OrganizationSwitcherClient = dynamic(
   { ssr: false }
 );
 
+// Helper function to get the API hostname for client-side widgets
+// Strips any protocol prefix to ensure it's just the hostname
+// Note: Only NEXT_PUBLIC_* env vars are available in client-side code
+function getApiHostname(): string | undefined {
+  const hostname = process.env.NEXT_PUBLIC_WORKOS_API_HOSTNAME;
+  if (!hostname) return undefined;
+  // Strip any existing protocol (https:// or http://) and trim
+  return hostname.replace(/^https?:\/\//, "").trim() || undefined;
+}
+
+const apiHostname = getApiHostname();
+
 export function UserTable({ token }: { token: string }) {
   return (
-    <WorkOsWidgets>
+    <WorkOsWidgets apiHostname={apiHostname}>
       <UsersManagement authToken={token} />
     </WorkOsWidgets>
   );
@@ -68,7 +81,7 @@ export function TeamManagementWidget({
             </Text>
           </Flex>
         </Card>
-        <WorkOsWidgets>
+        <WorkOsWidgets apiHostname={apiHostname}>
           <UsersManagement authToken={token} />
         </WorkOsWidgets>
       </Flex>
@@ -103,7 +116,7 @@ export function TeamManagementWidget({
           pointerEvents: isDirectoryManaged ? "none" : "auto",
         }}
       >
-        <WorkOsWidgets>
+        <WorkOsWidgets apiHostname={apiHostname}>
           <UsersManagement authToken={token} />
         </WorkOsWidgets>
       </Box>
@@ -113,7 +126,7 @@ export function TeamManagementWidget({
 
 export function UserProfileWidget({ token }: { token: string }) {
   return (
-    <WorkOsWidgets>
+    <WorkOsWidgets apiHostname={apiHostname}>
       <UserProfile authToken={token} />
     </WorkOsWidgets>
   );
@@ -121,7 +134,7 @@ export function UserProfileWidget({ token }: { token: string }) {
 
 export function UserSecurityWidget({ token }: { token: string }) {
   return (
-    <WorkOsWidgets>
+    <WorkOsWidgets apiHostname={apiHostname}>
       <UserSecurity authToken={token} />
     </WorkOsWidgets>
   );
@@ -135,7 +148,7 @@ export function UserSessionsWidget({
   token: string;
 }) {
   return (
-    <WorkOsWidgets>
+    <WorkOsWidgets apiHostname={apiHostname}>
       <UserSessions authToken={token} currentSessionId={sessionId} />
     </WorkOsWidgets>
   );
@@ -151,7 +164,7 @@ export function OrganizationSwitcherWidget({
 
 export function ApiKeysWidget({ token }: { token: string }) {
   return (
-    <WorkOsWidgets>
+    <WorkOsWidgets apiHostname={apiHostname}>
       <ApiKeys authToken={token} />
     </WorkOsWidgets>
   );
@@ -159,7 +172,7 @@ export function ApiKeysWidget({ token }: { token: string }) {
 
 export function PipesWidget({ token }: { token: string }) {
   return (
-    <WorkOsWidgets>
+    <WorkOsWidgets apiHostname={apiHostname}>
       <Pipes authToken={token} />
     </WorkOsWidgets>
   );
