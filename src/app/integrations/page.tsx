@@ -16,6 +16,7 @@ import {
   ChatBubbleIcon,
   EnvelopeClosedIcon,
   ExclamationTriangleIcon,
+  CubeIcon,
 } from "@radix-ui/react-icons";
 
 export default async function IntegrationsPage({
@@ -39,6 +40,7 @@ export default async function IntegrationsPage({
     "salesforce",
     "slack",
     "gmail",
+    "gitlab",
     "sentry",
   ] as const;
 
@@ -453,6 +455,150 @@ export default async function IntegrationsPage({
     }
   }
 
+  // GitLab integration (raw JSON demo)
+  let gitlabData: any = null;
+  let gitlabError: string | null = null;
+  if (activeTab === "gitlab") {
+    try {
+      const tokenResp = await workos.pipes.getAccessToken({
+        provider: "gitlab",
+        userId: user.id,
+        organizationId,
+      });
+      if (!tokenResp.active) {
+        gitlabError =
+          "GitLab token not available. User may need to connect or re-authorize." +
+          (tokenResp.error ? ` Details: ${tokenResp.error}` : "");
+      } else {
+        const accessToken = tokenResp.accessToken.accessToken;
+        // Fetch current user
+        const userRes = await fetch("https://gitlab.com/api/v4/user", {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          cache: "no-store",
+        });
+        if (!userRes.ok) {
+          gitlabError = `GitLab API error: ${userRes.status} ${userRes.statusText}`;
+        } else {
+          const userJson = await userRes.json();
+
+          // Fetch projects the user is a member of (light list)
+          const projectsRes = await fetch(
+            "https://gitlab.com/api/v4/projects?membership=true&simple=true&per_page=20&order_by=last_activity_at&sort=desc",
+            {
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                "Content-Type": "application/json",
+              },
+              cache: "no-store",
+            }
+          );
+          if (!projectsRes.ok) {
+            gitlabError = `Failed to fetch GitLab projects: ${projectsRes.status} ${projectsRes.statusText}`;
+          } else {
+            const projects = await projectsRes.json();
+
+            // For each project, fetch environments and last deployment
+            const projectDetails = await Promise.all(
+              (projects || []).map(async (p: any) => {
+                try {
+                  const envRes = await fetch(
+                    `https://gitlab.com/api/v4/projects/${encodeURIComponent(
+                      p.id
+                    )}/environments?per_page=20`,
+                    {
+                      headers: {
+                        Authorization: `Bearer ${accessToken}`,
+                        "Content-Type": "application/json",
+                      },
+                      cache: "no-store",
+                    }
+                  );
+                  const envs = envRes.ok ? await envRes.json() : [];
+
+                  const envsWithLastDeployment = await Promise.all(
+                    (envs || []).map(async (env: any) => {
+                      try {
+                        const depRes = await fetch(
+                          `https://gitlab.com/api/v4/projects/${encodeURIComponent(
+                            p.id
+                          )}/deployments?environment=${encodeURIComponent(
+                            env.name
+                          )}&per_page=1&order_by=updated_at&sort=desc`,
+                          {
+                            headers: {
+                              Authorization: `Bearer ${accessToken}`,
+                              "Content-Type": "application/json",
+                            },
+                            cache: "no-store",
+                          }
+                        );
+                        const deps = depRes.ok ? await depRes.json() : [];
+                        const last = Array.isArray(deps) ? deps[0] : undefined;
+                        return {
+                          id: env.id,
+                          name: env.name,
+                          state: env.state,
+                          lastDeployment: last
+                            ? {
+                                id: last.id,
+                                status: last.status,
+                                created_at: last.created_at,
+                                updated_at: last.updated_at,
+                                ref: last.ref,
+                                sha: last.sha,
+                                user: last.user,
+                              }
+                            : null,
+                        };
+                      } catch {
+                        return {
+                          id: env.id,
+                          name: env.name,
+                          state: env.state,
+                          lastDeployment: null,
+                        };
+                      }
+                    })
+                  );
+
+                  return {
+                    id: p.id,
+                    name: p.name_with_namespace || p.name,
+                    web_url: p.web_url,
+                    default_branch: p.default_branch,
+                    environments: envsWithLastDeployment,
+                  };
+                } catch {
+                  return {
+                    id: p.id,
+                    name: p.name_with_namespace || p.name,
+                    web_url: p.web_url,
+                    default_branch: p.default_branch,
+                    environments: [],
+                  };
+                }
+              })
+            );
+
+            gitlabData = {
+              user: userJson,
+              projects: projectDetails,
+            };
+          }
+        }
+      }
+    } catch (err) {
+      try {
+        gitlabError = `Failed to fetch GitLab data: ${JSON.stringify(err)}`;
+      } catch {
+        gitlabError = `Failed to fetch GitLab data: ${String(err)}`;
+      }
+    }
+  }
+
   return (
     <>
       {role === "admin" ? (
@@ -559,6 +705,12 @@ export default async function IntegrationsPage({
                   <TabLink active={activeTab === "sentry"}>
                     <ExclamationTriangleIcon />
                     <Text>Sentry</Text>
+                  </TabLink>
+                </Link>
+                <Link href="/integrations?tab=gitlab" passHref legacyBehavior>
+                  <TabLink active={activeTab === "gitlab"}>
+                    <CubeIcon />
+                    <Text>GitLab</Text>
                   </TabLink>
                 </Link>
               </Tabs.List>
@@ -680,6 +832,173 @@ export default async function IntegrationsPage({
                         </Text>
                       )}
                       {sentryData && <SentryDataCard sentryData={sentryData} />}
+                    </Flex>
+                  </ContentSection>
+                )}
+                {activeTab === "gitlab" && (
+                  <ContentSection title="GitLab">
+                    <Flex direction="column" gap="3">
+                      {!gitlabData && !gitlabError && (
+                        <Text size="3" color="gray">Loading GitLab data…</Text>
+                      )}
+                      {gitlabError && (
+                        <Text size="3" color="orange">{gitlabError}</Text>
+                      )}
+                      {gitlabData && (
+                        <Flex direction="column" gap="4">
+                          <div
+                            style={{
+                              padding: 16,
+                              borderRadius: "var(--radius-3)",
+                              border: "1px solid var(--gray-5)",
+                              background:
+                                "linear-gradient(135deg, var(--accent-3), white)",
+                            }}
+                          >
+                            <Flex gap="3" align="center">
+                              <div
+                                style={{
+                                  width: 60,
+                                  height: 60,
+                                  borderRadius: "50%",
+                                  backgroundColor: "var(--gray-3)",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  border: "1px solid var(--gray-6)",
+                                  boxShadow:
+                                    "0 1px 2px rgba(0,0,0,0.04), 0 4px 10px rgba(0,0,0,0.06)",
+                                }}
+                              >
+                                <CubeIcon width={30} height={30} />
+                              </div>
+                              <Flex direction="column">
+                                <Text size="5" weight="bold">
+                                  {gitlabData.user.name || gitlabData.user.username}
+                                </Text>
+                                <Text size="3" color="gray">
+                                  @{gitlabData.user.username}
+                                </Text>
+                              </Flex>
+                            </Flex>
+                          </div>
+
+                          {/* Projects & Environments */}
+                          {Array.isArray(gitlabData.projects) &&
+                            gitlabData.projects.length > 0 ? (
+                            <Flex direction="column" gap="3">
+                              <Text size="4" weight="bold">Projects & Environments</Text>
+                              <div
+                                style={{
+                                  display: "grid",
+                                  gridTemplateColumns:
+                                    "repeat(auto-fill, minmax(320px, 1fr))",
+                                  gap: 12,
+                                }}
+                              >
+                                {gitlabData.projects.map((proj: any) => (
+                                  <div
+                                    key={proj.id}
+                                    style={{
+                                      border: "1px solid var(--gray-5)",
+                                      borderRadius: "var(--radius-3)",
+                                      padding: 16,
+                                      backgroundColor: "white",
+                                      boxShadow:
+                                        "0 1px 1px rgba(0,0,0,0.02), 0 2px 8px rgba(0,0,0,0.04)",
+                                    }}
+                                  >
+                                    <Flex direction="column" gap="2">
+                                      <a
+                                        href={proj.web_url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        style={{ textDecoration: "none" }}
+                                      >
+                                        <Text size="3" weight="bold">
+                                          {proj.name}
+                                        </Text>
+                                      </a>
+                                      {proj.default_branch && (
+                                        <Text size="2" color="gray">
+                                          Default branch: {proj.default_branch}
+                                        </Text>
+                                      )}
+                                      <Text size="2" color="gray">
+                                        Environments:
+                                      </Text>
+                                      {Array.isArray(proj.environments) &&
+                                      proj.environments.length > 0 ? (
+                                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                          {proj.environments.map((env: any) => {
+                                            const last = env.lastDeployment;
+                                            return (
+                                              <div
+                                                key={env.id}
+                                                style={{
+                                                  padding: 8,
+                                                  borderRadius: "var(--radius-2)",
+                                                  backgroundColor: "var(--gray-2)",
+                                                  border: "1px solid var(--gray-4)",
+                                                }}
+                                              >
+                                                <Flex direction="column" gap="1">
+                                                  <Flex align="center" justify="between">
+                                                    <Text size="2" weight="medium">
+                                                      {env.name}
+                                                    </Text>
+                                                    <span
+                                                      style={{
+                                                        padding: "2px 8px",
+                                                        borderRadius: "999px",
+                                                        backgroundColor: "var(--gray-3)",
+                                                        border: "1px solid var(--gray-5)",
+                                                        fontSize: 11,
+                                                        color: "var(--gray-11)",
+                                                      }}
+                                                    >
+                                                      {env.state}
+                                                    </span>
+                                                  </Flex>
+                                                  {last ? (
+                                                    <>
+                                                      <Text size="1" color="gray">
+                                                        Last deployment: {last.status || "unknown"} • {last.ref || ""} •{" "}
+                                                        {last.sha ? last.sha.substring(0, 8) : ""}
+                                                      </Text>
+                                                      {last.updated_at && (
+                                                        <Text size="1" color="gray">
+                                                          Updated: {new Date(last.updated_at).toLocaleString()}
+                                                        </Text>
+                                                      )}
+                                                    </>
+                                                  ) : (
+                                                    <Text size="1" color="gray">
+                                                      No deployments found.
+                                                    </Text>
+                                                  )}
+                                                </Flex>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      ) : (
+                                        <Text size="2" color="gray">
+                                          No environments detected. Create a pipeline with an environment to populate this view.
+                                        </Text>
+                                      )}
+                                    </Flex>
+                                  </div>
+                                ))}
+                              </div>
+                            </Flex>
+                          ) : (
+                            <Text size="3" color="gray">
+                              No projects found or accessible. Ensure the token has access to at least one project.
+                            </Text>
+                          )}
+                        </Flex>
+                      )}
                     </Flex>
                   </ContentSection>
                 )}
