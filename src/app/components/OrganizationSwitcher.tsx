@@ -70,14 +70,15 @@ export default function OrganizationSwitcherClient({
           switchToOrganization={async ({ organizationId }) => {
             try {
               setIsLoading(true);
-              // Get the current tab from search params
               const tab = searchParams.get("tab");
-              // Construct the full pathname with the tab parameter
               const fullPathname = tab ? `${pathname}?tab=${tab}` : pathname;
-              await switchOrganization({
+              const result = await switchOrganization({
                 organizationId,
                 pathname: fullPathname,
               });
+              if (result?.redirectUrl) {
+                window.location.href = result.redirectUrl;
+              }
             } catch (error) {
               console.error("Error switching organization:", error);
               setIsLoading(false);

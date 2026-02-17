@@ -63,6 +63,6 @@ export async function switchOrganization({
   // Construct the redirect URL with the preserved tab
   const redirectUrl = tab ? `${basePath}?tab=${tab}` : basePath;
 
-  revalidatePath(pathname);
-  redirect(redirectUrl);
+  revalidatePath("/", "layout");
+  return { redirectUrl };
 }

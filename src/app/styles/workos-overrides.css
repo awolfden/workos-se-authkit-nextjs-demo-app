@@ -4,10 +4,8 @@
  */
 
 :root {
-  /* Grammarly brand colors */
-  --workos-purple: #15c39a;
-  --grammarly-green: #15c39a;
-  --grammarly-dark: #0e101a;
+  /* Brand accent (overridden per-prospect via brand-config.json) */
+  --workos-purple: #6e56cf;
 
   /* Letter spacing scale */
   --letter-spacing-1: 0.005em;

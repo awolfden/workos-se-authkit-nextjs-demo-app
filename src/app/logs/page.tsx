@@ -1,11 +1,13 @@
 import { withAuth } from "@workos-inc/authkit-nextjs";
-import { Text, Heading, Flex, Tabs } from "@radix-ui/themes";
+import { Text, Heading, Flex, Tabs, Box } from "@radix-ui/themes";
 import "@radix-ui/themes/styles.css";
 import "../styles/tabs.css";
 import Link from "next/link";
 import { jwtDecode } from "jwt-decode";
-import { CodeIcon, TokensIcon } from "@radix-ui/react-icons";
+import { CodeIcon, TokensIcon, UpdateIcon, Link2Icon } from "@radix-ui/react-icons";
 import { workos } from "../workos";
+import { DsyncEventStream } from "../components/DsyncEventStream";
+import { SsoEventStream } from "../components/SsoEventStream";
 
 export default async function LogsPage({
   searchParams,
@@ -42,7 +44,7 @@ export default async function LogsPage({
   };
 
   // Tabs limited to logs context
-  const validTabs = ["workos-response", "decoded-token"] as const;
+  const validTabs = ["workos-response", "decoded-token", "directory-sync", "sso-events"] as const;
 
   const resolvedSearchParams = await searchParams;
   const tabParam =
@@ -193,6 +195,20 @@ export default async function LogsPage({
     }
   };
   const accentPalette = getAccentPalette(accentHue);
+
+  // Directory Sync: fetch connection status for directory-sync tab
+  let directories: { id: string; state: string; domain?: string; name?: string }[] = [];
+  let dsyncEnabled = false;
+  try {
+    const { data } = await workos.directorySync.listDirectories({
+      organizationId,
+    });
+    directories = data ?? [];
+    dsyncEnabled = directories.some((d) => d.state === "active");
+  } catch (e) {
+    console.error("Failed to list directories:", e);
+  }
+
   const getLangColor = (lang: string): string => {
     if (!lang) return "var(--gray-8)";
     let hash = 0;
@@ -267,7 +283,18 @@ export default async function LogsPage({
                     <Text>Decoded Access Token</Text>
                   </TabLink>
                 </Link>
-                {/* Integrations moved to /integrations */}
+                <Link href="/logs?tab=directory-sync" passHref legacyBehavior>
+                  <TabLink active={activeTab === "directory-sync"}>
+                    <UpdateIcon />
+                    <Text>Directory Sync</Text>
+                  </TabLink>
+                </Link>
+                <Link href="/logs?tab=sso-events" passHref legacyBehavior>
+                  <TabLink active={activeTab === "sso-events"}>
+                    <Link2Icon />
+                    <Text>SSO Events</Text>
+                  </TabLink>
+                </Link>
               </Tabs.List>
 
               <Flex
@@ -342,7 +369,60 @@ export default async function LogsPage({
                     </Flex>
                   </ContentSection>
                 )}
-                {/* Integrations moved to /integrations */}
+                {activeTab === "directory-sync" && (
+                  <ContentSection title="Directory Sync">
+                    <Flex direction="column" gap="4">
+                      <Box
+                        style={{
+                          padding: 16,
+                          borderRadius: "var(--radius-3)",
+                          border: "1px solid var(--gray-5)",
+                          backgroundColor: "var(--gray-1)",
+                        }}
+                      >
+                        <Text size="3" weight="bold" as="div" mb="2">
+                          Connection status
+                        </Text>
+                        {dsyncEnabled ? (
+                          <Flex direction="column" gap="2">
+                            <Text size="2" color="green">
+                              Directory Sync is connected for this organization.
+                            </Text>
+                            {directories.filter((d) => d.state === "active").length > 0 && (
+                              <Text size="2" color="gray">
+                                {directories.filter((d) => d.state === "active").length} active directory
+                                (directories) linked. Events from your directory provider will appear below.
+                              </Text>
+                            )}
+                          </Flex>
+                        ) : (
+                          <Text size="2" color="gray">
+                            No directory connected yet. Configure SCIM in Settings → Enterprise Integrations; events will appear below as they occur.
+                          </Text>
+                        )}
+                      </Box>
+                      <Box>
+                        <Text size="3" weight="bold" as="div" mb="2">
+                          DSync events
+                        </Text>
+                        <Text size="2" color="gray" as="div" mb="3">
+                          User and group lifecycle events (created, updated, deleted, group membership) for this organization.
+                        </Text>
+                        <DsyncEventStream organizationId={organizationId} />
+                      </Box>
+                    </Flex>
+                  </ContentSection>
+                )}
+                {activeTab === "sso-events" && (
+                  <ContentSection title="SSO Events">
+                    <Flex direction="column" gap="4">
+                      <Text size="2" color="gray" as="div" mb="3">
+                        Connection lifecycle (activated, deactivated, deleted) and SSO sign-in events for this organization.
+                      </Text>
+                      <SsoEventStream organizationId={organizationId} />
+                    </Flex>
+                  </ContentSection>
+                )}
               </Flex>
             </Tabs.Root>
           </Flex>
